@@ -1,0 +1,9 @@
+error: `step!` inside closures is not supported
+  --> tests/ui/pipeline/fail/step_in_closure.rs:16:20
+   |
+16 |       let _closure = || {
+   |  ____________________^
+17 | |         step!(seed())?;
+18 | |         Ok::<(), Error>(())
+19 | |     };
+   | |_____^

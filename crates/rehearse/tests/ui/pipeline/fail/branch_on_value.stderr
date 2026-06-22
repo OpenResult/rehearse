@@ -1,0 +1,5 @@
+error: branching on a value produced by `step!` is not supported
+  --> tests/ui/pipeline/fail/branch_on_value.rs:22:8
+   |
+22 |     if value {
+   |        ^^^^^

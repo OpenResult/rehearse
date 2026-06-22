@@ -3,8 +3,8 @@
 ## Runtime-first scope
 
 The first implementation proved the non-macro runtime before adding procedural
-macros. Phase 4 adds only the `#[operation]` macro; `#[pipeline]` and `step!`
-remain deferred.
+macros. Phase 4 added `#[operation]`; phase 5 added the restricted
+`#[pipeline]` and `step!` frontend.
 
 ## Public shape
 
@@ -61,5 +61,21 @@ so workspace clippy compiles it during the first review pass.
   `Result<Output, Error>` returns.
 - Contextless operations generate constructors generic over the eventual plan
   context so they can compose into any compatible plan.
-- Sync functions, generics, borrowed non-context parameters, and pipeline
-  lowering are deferred.
+- Sync operation functions, generic operation functions, and borrowed
+  non-context operation parameters are deferred.
+
+## Pipeline macro
+
+- `rehearse` re-exports `#[pipeline]` and `step!` through the default `macros`
+  feature.
+- `#[pipeline]` lowers synchronous free functions returning
+  `Plan<Context, Output, Error>` into manual `PlanBuilder` code.
+- The first supported body language is straight-line:
+  `let value = step!(operation(...))?;`, ignored `step!(operation(...))?;`,
+  ordinary plan-time statements that do not inspect step-produced values, and a
+  final `Ok(value)`.
+- Step-produced values are handles, not runtime outputs. They may be passed to
+  later operation constructors or returned as the final plan output; inspecting,
+  borrowing, branching on, or transforming them is rejected.
+- Runtime control-flow nodes and arbitrary Rust control-flow lowering are
+  deferred.

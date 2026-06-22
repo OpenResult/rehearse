@@ -1,7 +1,7 @@
 //! Runtime planning engine for `rehearse`.
 //!
-//! This crate currently exposes the non-macro runtime: typed operation handles,
-//! ordered plans, execute mode, and dry-run mode.
+//! This crate exposes typed operation handles, ordered plans, execute mode,
+//! dry-run mode, and the optional macro frontend.
 
 mod describe;
 mod error;
@@ -24,4 +24,4 @@ pub use policy::{DryRunAction, DryRunPolicy, SafeDryRun};
 pub use report::{DryRunReport, DryRunStatus, NodeOutcome, NodeReport};
 
 #[cfg(feature = "macros")]
-pub use rehearse_macros::operation;
+pub use rehearse_macros::{operation, pipeline, step};

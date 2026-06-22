@@ -1,0 +1,5 @@
+error: `#[pipeline]` functions must return `Plan<Context, Output, Error>`
+ --> tests/ui/pipeline/fail/bad_return.rs:4:13
+  |
+4 | fn bad() -> u32 {
+  |             ^^^

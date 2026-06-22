@@ -1,0 +1,5 @@
+error: `#[pipeline]` functions must be synchronous plan constructors
+  --> tests/ui/pipeline/fail/async_pipeline.rs:10:1
+   |
+10 | async fn bad() -> rehearse::Plan<Services, u32, Error> {
+   | ^^^^^

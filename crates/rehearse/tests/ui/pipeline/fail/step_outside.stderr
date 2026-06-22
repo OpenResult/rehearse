@@ -1,0 +1,7 @@
+error: `step!` can only be used inside a `#[pipeline]` function
+ --> tests/ui/pipeline/fail/step_outside.rs:4:5
+  |
+4 |     step!(anything());
+  |     ^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `step` (in Nightly builds, run with -Z macro-backtrace for more info)

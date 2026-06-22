@@ -1,0 +1,5 @@
+error: `return` is not supported inside `#[pipeline]` bodies
+  --> tests/ui/pipeline/fail/return_in_body.rs:16:5
+   |
+16 |     return bad();
+   |     ^^^^^^^^^^^^

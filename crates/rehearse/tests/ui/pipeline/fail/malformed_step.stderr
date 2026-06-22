@@ -1,0 +1,5 @@
+error: malformed `step!`; expected `step!(operation(...))?`
+  --> tests/ui/pipeline/fail/malformed_step.rs:16:23
+   |
+16 |     let value = step!(seed)?;
+   |                       ^^^^

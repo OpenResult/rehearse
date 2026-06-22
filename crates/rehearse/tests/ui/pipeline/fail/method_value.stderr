@@ -1,0 +1,5 @@
+error: method calls on values produced by `step!` are not supported
+  --> tests/ui/pipeline/fail/method_value.rs:22:16
+   |
+22 |     let _len = value.len();
+   |                ^^^^^^^^^^^

@@ -1,0 +1,5 @@
+error: final `Ok(...)` must return a value produced by `step!`
+  --> tests/ui/pipeline/fail/final_not_step_value.rs:18:8
+   |
+18 |     Ok(value)
+   |        ^^^^^

@@ -30,7 +30,7 @@ renamed_rehearse = {{ package = "rehearse", path = "{}" }}
         .expect("failed to write fixture manifest");
     std::fs::write(
         fixture_dir.join("src").join("main.rs"),
-        r#"use renamed_rehearse::{operation, PlanBuilder};
+        r#"use renamed_rehearse::{operation, pipeline, Plan, PlanBuilder};
 
 #[derive(Clone)]
 struct Services;
@@ -43,10 +43,17 @@ async fn add_one(value: u32) -> Result<u32, Error> {
     Ok(value + 1)
 }
 
+#[pipeline]
+fn calculate(value: u32) -> Plan<Services, u32, Error> {
+    let output = renamed_rehearse::step!(add_one(value))?;
+    Ok(output)
+}
+
 fn main() {
     let mut builder = PlanBuilder::<Services, Error>::new("renamed");
     let output = builder.add(add_one(1_u32));
     let _plan = builder.finish(output);
+    let _pipeline_plan = calculate(1_u32);
 }
 "#,
     )

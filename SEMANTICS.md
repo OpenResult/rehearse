@@ -1,7 +1,6 @@
 # rehearse Semantics
 
-This document describes the current runtime semantics and the implemented
-`#[operation]` frontend.
+This document describes the current runtime semantics and macro frontend.
 
 ## Declared Impact
 
@@ -37,6 +36,30 @@ node to run.
 
 Constructor arguments accept literal values, `Value<T>` handles, or explicit
 `Input<T>` values through `IntoInput<T>`.
+
+## Pipeline Macro
+
+`#[pipeline]` is implemented for synchronous free functions returning
+`Plan<Context, Output, Error>`.
+
+The supported body language is intentionally restricted:
+
+- ordinary plan-construction statements that do not inspect step-produced
+  values;
+- `let value = step!(operation(...))?;`;
+- `step!(operation(...))?;` for ignored step outputs;
+- final `Ok(value)` where `value` was produced by a previous `step!`.
+
+The macro lowers the function to a `PlanBuilder<Context, Error>`, one
+`builder.add(...)` call per step, and a final `builder.finish(value)`.
+
+`step!` outside a `#[pipeline]` function expands to a compile error. Inside a
+pipeline, the attribute macro consumes `step!` before normal macro expansion.
+
+The initial pipeline language rejects branching, matching, loops, references,
+methods, operators, closures, async blocks, and unsupported `?` uses involving
+step-produced values. These restrictions keep the macro a small frontend over
+explicit plan nodes rather than an analyzer for arbitrary Rust control flow.
 
 ## Plan Construction
 
@@ -145,4 +168,5 @@ invoke operation bodies.
   futures. Tests and examples may use Tokio.
 - Sync operation adaptation is deferred; callers can wrap sync work in an async
   block.
-- `#[pipeline]` and `step!` are deferred.
+- Generic pipeline functions, async pipeline constructors, and arbitrary Rust
+  control-flow lowering are deferred.

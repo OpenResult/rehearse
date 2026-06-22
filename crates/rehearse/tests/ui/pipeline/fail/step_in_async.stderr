@@ -1,0 +1,9 @@
+error: `step!` inside async blocks is not supported
+  --> tests/ui/pipeline/fail/step_in_async.rs:16:19
+   |
+16 |       let _future = async {
+   |  ___________________^
+17 | |         step!(seed())?;
+18 | |         Ok::<(), Error>(())
+19 | |     };
+   | |_____^

@@ -1,0 +1,5 @@
+error: `step!(...)` in a let binding must be followed by `?`
+  --> tests/ui/pipeline/fail/missing_question.rs:16:17
+   |
+16 |     let value = step!(seed());
+   |                 ^^^^^^^^^^^^^

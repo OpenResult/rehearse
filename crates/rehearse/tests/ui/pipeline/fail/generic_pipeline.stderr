@@ -1,0 +1,5 @@
+error: generic pipeline functions are not supported yet
+  --> tests/ui/pipeline/fail/generic_pipeline.rs:10:7
+   |
+10 | fn bad<T>(value: T) -> rehearse::Plan<Services, T, Error> {
+   |       ^^^

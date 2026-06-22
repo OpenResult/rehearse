@@ -1,0 +1,5 @@
+error: `?` is only supported immediately after `step!(...)`
+  --> tests/ui/pipeline/fail/question_outside_step.rs:20:17
+   |
+20 |     let value = maybe()?;
+   |                 ^^^^^^^^

@@ -1,0 +1,5 @@
+error: `#[pipeline]` functions must end with `Ok(value)`
+  --> tests/ui/pipeline/fail/final_not_ok.rs:17:5
+   |
+17 |     value
+   |     ^^^^^

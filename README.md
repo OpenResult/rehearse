@@ -77,18 +77,21 @@ All operations in a plan share one context type and one plan error type.
 
 ## Compose A Pipeline
 
-The manual builder creates an ordered static plan. Adding an operation records
-metadata and dependencies; it does not run the operation body.
+The `#[pipeline]` macro lowers straight-line `step!(...)` calls into an ordered
+static plan. Calling the function builds a plan; it does not run operation
+bodies.
 
 ```rust
-use rehearse::{Input, PlanBuilder};
+use rehearse::{pipeline, step, Plan};
 
-let mut builder = PlanBuilder::<Services, DeployError>::new("deploy");
+#[pipeline]
+fn deploy(credentials: String) -> Plan<Services, Deployment, DeployError> {
+    let session = step!(login(credentials))?;
+    let deployment = step!(apply_changes(session))?;
+    Ok(deployment)
+}
 
-let session = builder.add(login("secret".to_owned()));
-let deployment = builder.add(apply_changes(session));
-
-let plan = builder.finish(deployment);
+let plan = deploy("secret".to_owned());
 ```
 
 ## Describe
@@ -173,29 +176,28 @@ This is a declaration-based contract, not a proof of non-mutation. It depends on
 correct impact classification and on user-supplied operation bodies honoring
 their declared role.
 
-## Upcoming Pipeline Syntax
+## Manual Builder
 
-The operation macro is implemented. The intended pipeline macro and `step!`
-frontend are not implemented yet; they will build on the same runtime
-semantics.
+The macros are a frontend over the manual runtime API. Tests and lower-level
+integrations may still build plans directly.
 
 ```rust
-use rehearse::{pipeline, step, Plan};
+use rehearse::{Input, PlanBuilder};
 
-#[pipeline]
-fn deploy(input: DeployInput) -> Plan<Services, Deployment, DeployError> {
-    let session = step!(login(input.credentials))?;
-    let deployment = step!(apply_changes(session))?;
-    Ok(deployment)
-}
+let mut builder = PlanBuilder::<Services, DeployError>::new("deploy");
+let session = builder.add(login("secret".to_owned()));
+let deployment = builder.add(apply_changes(Input::value(session)));
+let plan = builder.finish(deployment);
 ```
 
 ## Limitations
 
-- `#[pipeline]` and `step!` are not implemented yet.
 - `#[operation]` currently supports async free functions with owned
   non-context parameters, zero or one `#[context] &C` parameter, concrete
   `Result<Output, Error>` returns, and no generics.
+- `#[pipeline]` currently supports straight-line plan constructors ending in
+  `Ok(value)`, with step-produced values usable only in later `step!(...)`
+  calls or the final output.
 - No preview hooks or predicted values.
 - No runtime branching, loops over operation outputs, retries, rollback,
   durable execution, or serialization.
@@ -205,6 +207,6 @@ fn deploy(input: DeployInput) -> Plan<Services, Deployment, DeployError> {
 
 ## Status
 
-Runtime phases 0-4 are implemented: ordered plans, execute, dry-run, reports,
-static describe output, documentation, and `#[operation]`. Pipeline macro work
-remains deferred.
+Runtime phases 0-5 are implemented: ordered plans, execute, dry-run, reports,
+static describe output, documentation, `#[operation]`, `#[pipeline]`, and
+`step!`. Polish and packaging work remains.
