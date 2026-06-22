@@ -3,6 +3,7 @@
 //! This crate currently exposes the non-macro runtime: typed operation handles,
 //! ordered plans, execute mode, and dry-run mode.
 
+mod describe;
 mod error;
 mod impact;
 mod operation;
@@ -14,6 +15,7 @@ pub mod __private;
 pub mod plan;
 pub mod runner;
 
+pub use describe::{PlanDescription, PlanDescriptionRow};
 pub use error::{DryRunFailure, ExecuteError};
 pub use impact::Impact;
 pub use operation::{BoxFuture, Operation, OperationMetadata};

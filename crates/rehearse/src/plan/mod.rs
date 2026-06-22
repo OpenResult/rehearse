@@ -1,5 +1,5 @@
 mod builder;
-mod node;
+pub(crate) mod node;
 pub mod store;
 mod value;
 
@@ -7,7 +7,7 @@ pub use builder::PlanBuilder;
 pub use value::{Input, NodeId, OperationInputs, Value};
 
 use crate::runner;
-use crate::{DryRunPolicy, DryRunReport, ExecuteError, SafeDryRun};
+use crate::{DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, SafeDryRun};
 use node::ErasedNode;
 use std::marker::PhantomData;
 
@@ -47,6 +47,17 @@ where
             impact: node.metadata().impact(),
             dependencies: node.dependencies(),
         })
+    }
+
+    pub fn describe(&self) -> PlanDescription {
+        self.describe_with_policy(&SafeDryRun)
+    }
+
+    pub fn describe_with_policy<P>(&self, policy: &P) -> PlanDescription
+    where
+        P: DryRunPolicy,
+    {
+        crate::describe::describe_plan(&self.name, &self.nodes, policy)
     }
 
     pub async fn execute(&self, context: &C) -> Result<T, ExecuteError<E>> {

@@ -39,3 +39,12 @@ does not reject ordinary skipped writes or deletes.
 The phase-2 `read_after_write` example lives under `crates/rehearse/examples`
 so workspace clippy compiles it during the first review pass.
 
+## Static describe
+
+- `Plan::describe()` returns an owned `PlanDescription` snapshot using
+  `SafeDryRun`.
+- `Plan::describe_with_policy(&policy)` renders the same static plan metadata
+  with a caller-supplied dry-run policy.
+- Description rows copy node id, 1-based position, operation name, impact, and
+  dry-run action. Formatting does not touch context, stores, or operation
+  bodies.
