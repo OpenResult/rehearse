@@ -398,15 +398,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         allow_dirty_package_checks: !args.execute,
     });
 
-    println!("{}", plan.describe());
-
     if args.execute {
+        println!("{}", plan.describe_execution());
         let outcome = plan.execute(&workspace).await?;
         println!(
             "published {RUNTIME_CRATE} {} and {MACROS_CRATE} {}",
             outcome.version, outcome.version
         );
     } else {
+        println!("{}", plan.describe());
         let report = plan.dry_run(&workspace).await;
         println!("{report}");
         report.require_no_failures()?;

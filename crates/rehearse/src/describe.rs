@@ -140,3 +140,128 @@ where
 
     PlanDescription::new(name, rows)
 }
+
+/// Owned static description of execute-mode plan order.
+///
+/// Execution descriptions contain only static metadata. They never touch
+/// context, value stores, or operation bodies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanExecutionDescription {
+    plan_name: String,
+    rows: Vec<PlanExecutionDescriptionRow>,
+}
+
+impl PlanExecutionDescription {
+    pub(crate) fn new(
+        plan_name: impl Into<String>,
+        rows: Vec<PlanExecutionDescriptionRow>,
+    ) -> Self {
+        Self {
+            plan_name: plan_name.into(),
+            rows,
+        }
+    }
+
+    /// Returns the described plan name.
+    pub fn plan_name(&self) -> &str {
+        &self.plan_name
+    }
+
+    /// Iterates description rows in plan order.
+    pub fn iter(&self) -> impl Iterator<Item = &PlanExecutionDescriptionRow> {
+        self.rows.iter()
+    }
+
+    /// Returns the number of described nodes.
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// Returns true when the description contains no nodes.
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+}
+
+impl fmt::Display for PlanExecutionDescription {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", self.plan_name)?;
+
+        if !self.rows.is_empty() {
+            writeln!(f)?;
+        }
+
+        for row in &self.rows {
+            let impact = row.impact.to_string();
+            writeln!(f, "{:>3}  {:<20} {}", row.position, row.name, impact)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Static execute-mode description row for one plan node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanExecutionDescriptionRow {
+    node: NodeId,
+    position: usize,
+    name: String,
+    impact: Impact,
+}
+
+impl PlanExecutionDescriptionRow {
+    pub(crate) fn new(
+        node: NodeId,
+        position: usize,
+        name: impl Into<String>,
+        impact: Impact,
+    ) -> Self {
+        Self {
+            node,
+            position,
+            name: name.into(),
+            impact,
+        }
+    }
+
+    /// Returns the node id.
+    pub fn node(&self) -> NodeId {
+        self.node
+    }
+
+    /// Returns the 1-based position in the plan.
+    pub fn position(&self) -> usize {
+        self.position
+    }
+
+    /// Returns the operation name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the operation's declared impact.
+    pub fn impact(&self) -> Impact {
+        self.impact
+    }
+}
+
+pub(crate) fn describe_execution_plan<C, E>(
+    name: &str,
+    nodes: &[Box<dyn crate::plan::node::ErasedNode<C, E>>],
+) -> PlanExecutionDescription {
+    let rows = nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| {
+            let metadata = node.metadata();
+            PlanExecutionDescriptionRow::new(
+                node.id(),
+                index + 1,
+                metadata.name(),
+                metadata.impact(),
+            )
+        })
+        .collect();
+
+    PlanExecutionDescription::new(name, rows)
+}

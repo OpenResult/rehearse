@@ -4,7 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
-- No changes yet.
+No changes yet.
+
+## 0.1.1 - 2026-06-22
+
+- Added `Plan::describe_execution()` for execute-mode static plan rendering
+  without a dry-run action column.
 
 ## 0.1.0 - 2026-06-22
 

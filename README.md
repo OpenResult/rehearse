@@ -29,7 +29,7 @@ Use the released crate from crates.io:
 
 ```toml
 [dependencies]
-rehearse = "0.1.0"
+rehearse = "0.1.1"
 ```
 
 For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
@@ -51,7 +51,7 @@ git-backed Cargo registry index and local `.crate` downloads, then compiles a
 throwaway consumer crate with:
 
 ```toml
-rehearse = { version = "0.1.0", registry = "rehearse-local" }
+rehearse = { version = "0.1.1", registry = "rehearse-local" }
 ```
 
 Expected final output includes the generated `.crate` paths and:
@@ -175,6 +175,17 @@ deploy
 
 Use `describe_with_policy(&policy)` to render actions for a custom
 `DryRunPolicy`.
+
+Use `describe_execution()` before execute mode when the dry-run action column
+would be misleading. It renders the same static plan order without an action
+column:
+
+```text
+deploy
+
+  1  login                session
+  2  apply_changes        write
+```
 
 ## Dry-run
 

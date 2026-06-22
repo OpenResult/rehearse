@@ -158,6 +158,8 @@ ordinary skipped writes or deletes.
 
 `Plan::describe()` renders static plan metadata and default dry-run actions.
 `Plan::describe_with_policy(&policy)` renders actions for a custom policy.
+`Plan::describe_execution()` renders static execute-mode plan order without a
+dry-run action column.
 
 Describe does not use a context, create a value store, resolve dependencies, or
 invoke operation bodies.

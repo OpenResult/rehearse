@@ -8,7 +8,9 @@ pub use builder::PlanBuilder;
 pub use value::{Input, IntoInput, NodeId, OperationInputs, Value};
 
 use crate::runner;
-use crate::{DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, SafeDryRun};
+use crate::{
+    DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, PlanExecutionDescription, SafeDryRun,
+};
 use node::ErasedNode;
 use std::marker::PhantomData;
 
@@ -70,6 +72,11 @@ where
         P: DryRunPolicy,
     {
         crate::describe::describe_plan(&self.name, &self.nodes, policy)
+    }
+
+    /// Describes execute-mode plan order without dry-run policy actions.
+    pub fn describe_execution(&self) -> PlanExecutionDescription {
+        crate::describe::describe_execution_plan(&self.name, &self.nodes)
     }
 
     /// Executes every operation in plan order and stops at the first failure.

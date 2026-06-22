@@ -57,9 +57,13 @@ rehearses the write without changing the file.
   `SafeDryRun`.
 - `Plan::describe_with_policy(&policy)` renders the same static plan metadata
   with a caller-supplied dry-run policy.
-- Description rows copy node id, 1-based position, operation name, impact, and
-  dry-run action. Formatting does not touch context, stores, or operation
-  bodies.
+- `Plan::describe_execution()` returns an owned `PlanExecutionDescription`
+  snapshot with node order, operation name, and impact only. It omits dry-run
+  actions so execute-mode tools do not print misleading `skip` labels for
+  write/delete operations.
+- Dry-run description rows copy node id, 1-based position, operation name,
+  impact, and dry-run action. Execution description rows omit the action.
+  Formatting does not touch context, stores, or operation bodies.
 
 ## Operation macro
 
@@ -99,7 +103,7 @@ rehearses the write without changing the file.
   published dependency relationship.
 - `cargo package -p rehearse-macros --allow-dirty` verifies locally.
 - `cargo package -p rehearse --allow-dirty` cannot prepare the upload package
-  until `rehearse-macros = 0.1.0` is available from the target registry. Cargo
+  until `rehearse-macros` is available from the target registry. Cargo
   strips local paths during package preparation and resolves even optional
   dependencies from the registry.
 - Both crates include repository metadata and are publish-enabled; real publish
@@ -117,7 +121,7 @@ rehearses the write without changing the file.
   requires a registry API. The local smoke test simulates package resolution
   instead: first publish `rehearse-macros` into the local index, stage `rehearse`
   with a registry-qualified macro dependency, then compile a generated consumer
-  crate against `rehearse = { version = "0.1.0", registry = "rehearse-local" }`.
+  crate against `rehearse = { version = "0.1.1", registry = "rehearse-local" }`.
 - External dependencies in the local index are explicitly marked as crates.io
   dependencies so Cargo does not try to resolve them from the local rehearse-only
   registry.

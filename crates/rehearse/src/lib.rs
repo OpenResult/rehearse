@@ -23,7 +23,9 @@ pub mod __private;
 pub mod plan;
 mod runner;
 
-pub use describe::{PlanDescription, PlanDescriptionRow};
+pub use describe::{
+    PlanDescription, PlanDescriptionRow, PlanExecutionDescription, PlanExecutionDescriptionRow,
+};
 pub use error::{DryRunFailure, ExecuteError};
 pub use impact::Impact;
 pub use operation::{BoxFuture, Operation, OperationMetadata};

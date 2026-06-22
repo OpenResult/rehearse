@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "rehearse"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rehearse-macros",
  "serde_json",
@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "rehearse-macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
