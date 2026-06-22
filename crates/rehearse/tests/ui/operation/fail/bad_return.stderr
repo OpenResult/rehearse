@@ -1,0 +1,5 @@
+error: `#[operation]` functions must return `Result<Output, Error>`
+ --> tests/ui/operation/fail/bad_return.rs:4:19
+  |
+4 | async fn bad() -> u32 {
+  |                   ^^^

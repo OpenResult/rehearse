@@ -1,0 +1,5 @@
+error: borrowed non-context operation parameters are not supported yet
+ --> tests/ui/operation/fail/borrowed_arg.rs:7:21
+  |
+7 | async fn bad(value: &str) -> Result<(), Error> {
+  |                     ^^^^

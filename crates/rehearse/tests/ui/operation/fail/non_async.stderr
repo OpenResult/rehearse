@@ -1,0 +1,5 @@
+error: `#[operation]` currently supports async functions only
+ --> tests/ui/operation/fail/non_async.rs:7:1
+  |
+7 | fn bad() -> Result<(), Error> {
+  | ^^

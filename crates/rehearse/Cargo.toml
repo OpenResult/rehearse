@@ -5,6 +5,13 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
 
+[features]
+default = ["macros"]
+macros = ["dep:rehearse-macros"]
+
+[dependencies]
+rehearse-macros = { path = "../rehearse-macros", optional = true }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
-
+trybuild = "1"

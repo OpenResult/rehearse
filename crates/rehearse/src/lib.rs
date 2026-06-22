@@ -19,6 +19,9 @@ pub use describe::{PlanDescription, PlanDescriptionRow};
 pub use error::{DryRunFailure, ExecuteError};
 pub use impact::Impact;
 pub use operation::{BoxFuture, Operation, OperationMetadata};
-pub use plan::{Input, NodeId, OperationInputs, Plan, PlanBuilder, Value};
+pub use plan::{Input, IntoInput, NodeId, OperationInputs, Plan, PlanBuilder, Value};
 pub use policy::{DryRunAction, DryRunPolicy, SafeDryRun};
 pub use report::{DryRunReport, DryRunStatus, NodeOutcome, NodeReport};
+
+#[cfg(feature = "macros")]
+pub use rehearse_macros::operation;

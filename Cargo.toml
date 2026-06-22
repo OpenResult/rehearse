@@ -1,4 +1,3 @@
 [workspace]
-members = ["crates/rehearse"]
+members = ["crates/rehearse", "crates/rehearse-macros"]
 resolver = "2"
-

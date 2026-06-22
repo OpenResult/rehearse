@@ -4,7 +4,7 @@ pub mod store;
 mod value;
 
 pub use builder::PlanBuilder;
-pub use value::{Input, NodeId, OperationInputs, Value};
+pub use value::{Input, IntoInput, NodeId, OperationInputs, Value};
 
 use crate::runner;
 use crate::{DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, SafeDryRun};

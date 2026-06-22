@@ -1,0 +1,5 @@
+error: `#[context]` parameter must be typed as `&Context`
+  --> tests/ui/operation/fail/invalid_context_type.rs:10:35
+   |
+10 | async fn bad(#[context] services: Services) -> Result<(), Error> {
+   |                                   ^^^^^^^^

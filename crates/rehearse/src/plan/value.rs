@@ -70,6 +70,28 @@ impl<T> Input<T> {
     }
 }
 
+pub trait IntoInput<T> {
+    fn into_input(self) -> Input<T>;
+}
+
+impl<T> IntoInput<T> for Input<T> {
+    fn into_input(self) -> Input<T> {
+        self
+    }
+}
+
+impl<T> IntoInput<T> for Value<T> {
+    fn into_input(self) -> Input<T> {
+        Input::Value(self)
+    }
+}
+
+impl<T> IntoInput<T> for T {
+    fn into_input(self) -> Input<T> {
+        Input::Literal(self)
+    }
+}
+
 pub trait OperationInputs: Send + Sync + 'static {
     type Resolved: Send + 'static;
 

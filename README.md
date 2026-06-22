@@ -34,11 +34,12 @@ rehearse = { path = "crates/rehearse" }
 
 ## Define Operations
 
-The current runtime API uses manual operation builders. The procedural macros
-shown later in this README are planned, not implemented yet.
+The `#[operation]` macro turns an async function into an operation constructor.
+The original body becomes delayed executor code; calling the constructor only
+records metadata and inputs.
 
 ```rust
-use rehearse::{BoxFuture, Impact, Input, Operation, OperationMetadata};
+use rehearse::operation;
 
 #[derive(Clone)]
 struct Services;
@@ -52,24 +53,22 @@ struct Session;
 #[derive(Clone)]
 struct Deployment;
 
-fn login(credentials: String) -> Operation<Services, Session, DeployError> {
-    Operation::new(
-        OperationMetadata::new("login", Impact::Session),
-        Input::literal(credentials),
-        |_services: &Services, _credentials: String| -> BoxFuture<'_, Result<Session, DeployError>> {
-            Box::pin(async move { Ok(Session) })
-        },
-    )
+#[operation(impact = session)]
+async fn login(
+    #[context] services: &Services,
+    credentials: String,
+) -> Result<Session, DeployError> {
+    let _ = (services, credentials);
+    Ok(Session)
 }
 
-fn apply_changes(session: Input<Session>) -> Operation<Services, Deployment, DeployError> {
-    Operation::new(
-        OperationMetadata::new("apply_changes", Impact::Write),
-        session,
-        |_services: &Services, _session: Session| -> BoxFuture<'_, Result<Deployment, DeployError>> {
-            Box::pin(async move { Ok(Deployment) })
-        },
-    )
+#[operation(impact = write)]
+async fn apply_changes(
+    #[context] services: &Services,
+    session: Session,
+) -> Result<Deployment, DeployError> {
+    let _ = (services, session);
+    Ok(Deployment)
 }
 ```
 
@@ -87,7 +86,7 @@ use rehearse::{Input, PlanBuilder};
 let mut builder = PlanBuilder::<Services, DeployError>::new("deploy");
 
 let session = builder.add(login("secret".to_owned()));
-let deployment = builder.add(apply_changes(Input::value(session)));
+let deployment = builder.add(apply_changes(session));
 
 let plan = builder.finish(deployment);
 ```
@@ -174,18 +173,14 @@ This is a declaration-based contract, not a proof of non-mutation. It depends on
 correct impact classification and on user-supplied operation bodies honoring
 their declared role.
 
-## Upcoming Macro Syntax
+## Upcoming Pipeline Syntax
 
-The intended ergonomic frontend is not implemented yet. It will build on the
-runtime semantics already tested by the manual builder.
+The operation macro is implemented. The intended pipeline macro and `step!`
+frontend are not implemented yet; they will build on the same runtime
+semantics.
 
 ```rust
-use rehearse::{operation, pipeline, step, Plan};
-
-#[operation(impact = session)]
-async fn login(services: &Services, credentials: String) -> Result<Session, DeployError> {
-    services.login(credentials).await
-}
+use rehearse::{pipeline, step, Plan};
 
 #[pipeline]
 fn deploy(input: DeployInput) -> Plan<Services, Deployment, DeployError> {
@@ -197,7 +192,10 @@ fn deploy(input: DeployInput) -> Plan<Services, Deployment, DeployError> {
 
 ## Limitations
 
-- No procedural macros yet.
+- `#[pipeline]` and `step!` are not implemented yet.
+- `#[operation]` currently supports async free functions with owned
+  non-context parameters, zero or one `#[context] &C` parameter, concrete
+  `Result<Output, Error>` returns, and no generics.
 - No preview hooks or predicted values.
 - No runtime branching, loops over operation outputs, retries, rollback,
   durable execution, or serialization.
@@ -207,7 +205,6 @@ fn deploy(input: DeployInput) -> Plan<Services, Deployment, DeployError> {
 
 ## Status
 
-Runtime phases 0-3 are the active implementation target: ordered plans, execute,
-dry-run, reports, static describe output, and documentation. Macro work remains
-deferred until the runtime surface is stable.
-
+Runtime phases 0-4 are implemented: ordered plans, execute, dry-run, reports,
+static describe output, documentation, and `#[operation]`. Pipeline macro work
+remains deferred.

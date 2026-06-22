@@ -1,0 +1,5 @@
+error: `#[operation]` supports at most one `#[context]` parameter
+  --> tests/ui/operation/fail/duplicate_context.rs:12:16
+   |
+12 |     #[context] second: &Services,
+   |                ^^^^^^

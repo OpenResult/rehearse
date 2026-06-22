@@ -2,9 +2,9 @@
 
 ## Runtime-first scope
 
-The first implementation contains only the non-macro runtime crate. The
-procedural macro crate is intentionally deferred until the runtime semantics are
-covered by tests.
+The first implementation proved the non-macro runtime before adding procedural
+macros. Phase 4 adds only the `#[operation]` macro; `#[pipeline]` and `step!`
+remain deferred.
 
 ## Public shape
 
@@ -16,6 +16,8 @@ covered by tests.
   first pass. This keeps the value store simple and avoids unsafe code.
 - Sync operation adaptation is deferred. Users can wrap sync work in an async
   block that returns the crate's `BoxFuture`.
+- `IntoInput<T>` is public so generated operation constructors can accept
+  literals, `Value<T>` handles, or explicit `Input<T>` values.
 
 ## Internal representation
 
@@ -48,3 +50,16 @@ so workspace clippy compiles it during the first review pass.
 - Description rows copy node id, 1-based position, operation name, impact, and
   dry-run action. Formatting does not touch context, stores, or operation
   bodies.
+
+## Operation macro
+
+- `rehearse` re-exports `#[operation]` through the default `macros` feature.
+- The proc macro crate does not depend on the runtime crate; generated code uses
+  `proc_macro_crate` to refer to `rehearse`, including renamed dependencies.
+- `#[operation]` supports async free functions with zero or one
+  `#[context] &C` parameter, owned non-context parameters, and concrete
+  `Result<Output, Error>` returns.
+- Contextless operations generate constructors generic over the eventual plan
+  context so they can compose into any compatible plan.
+- Sync functions, generics, borrowed non-context parameters, and pipeline
+  lowering are deferred.

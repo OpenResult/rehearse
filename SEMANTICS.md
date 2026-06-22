@@ -1,6 +1,7 @@
 # rehearse Semantics
 
-This document describes the current non-macro runtime semantics.
+This document describes the current runtime semantics and the implemented
+`#[operation]` frontend.
 
 ## Declared Impact
 
@@ -19,6 +20,23 @@ pub enum Impact {
 ```
 
 Operation authors are responsible for choosing accurate metadata.
+
+## Operation Macro
+
+`#[operation(impact = ...)]` is implemented for async free functions with:
+
+- zero or one `#[context] context: &C` parameter;
+- owned non-context parameters;
+- concrete `Result<Output, Error>` return types;
+- no generics, explicit lifetimes, borrowed non-context parameters, or methods.
+
+The macro replaces the function with an operation constructor of the same name.
+Calling that constructor does not invoke the original body. The body is wrapped
+as delayed executor code that runs only when execute or dry-run policy allows the
+node to run.
+
+Constructor arguments accept literal values, `Value<T>` handles, or explicit
+`Input<T>` values through `IntoInput<T>`.
 
 ## Plan Construction
 
@@ -127,4 +145,4 @@ invoke operation bodies.
   futures. Tests and examples may use Tokio.
 - Sync operation adaptation is deferred; callers can wrap sync work in an async
   block.
-
+- `#[pipeline]` and `step!` are deferred.

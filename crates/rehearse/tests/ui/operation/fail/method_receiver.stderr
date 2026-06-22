@@ -1,0 +1,5 @@
+error: `#[operation]` does not support methods or `self` parameters
+  --> tests/ui/operation/fail/method_receiver.rs:10:18
+   |
+10 |     async fn bad(&self) -> Result<(), Error> {
+   |                  ^^^^^
