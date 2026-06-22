@@ -169,9 +169,9 @@ invoke operation bodies.
 - Operations in one plan share one error type `E`.
 - Async execution is runtime-independent in the library API through boxed
   futures. Tests and examples may use Tokio.
-- Sync operation adaptation is deferred; callers can wrap sync work in an async
-  block.
+- Sync operation functions are not currently supported; callers can wrap sync
+  work in an async block.
 - Generic pipeline functions, async pipeline constructors, and arbitrary Rust
-  control-flow lowering are deferred.
+  control-flow lowering are not currently supported.
 - The crate is still marked `publish = false` while registry and naming checks
   remain open.

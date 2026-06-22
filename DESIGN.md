@@ -1,23 +1,22 @@
 # Design Notes
 
-## Runtime-first scope
+## Implementation scope
 
-The first implementation proved the non-macro runtime before adding procedural
-macros. Phase 4 added `#[operation]`; phase 5 added the restricted
-`#[pipeline]` and `step!` frontend. Phase 6 keeps the MVP shape intact and
-polishes documentation, examples, and packaging metadata. Phase 7 adds a local
-registry smoke test for package resolution before real registry publishing.
+The implementation centers on an ordered runtime plan plus a small procedural
+macro frontend. The runtime owns the semantic contract; macros provide a
+restricted ergonomic syntax over the same `PlanBuilder` model.
 
 ## Public shape
 
 - The runtime uses `Plan<C, T, E>` generic order: shared context, final output,
   and common plan error.
 - Manual operations use one common error type `E`. Per-operation error
-  conversion is deferred.
+  conversion is not part of the current API.
 - Operation inputs and outputs require `Clone + Send + Sync + 'static` for the
-  first pass. This keeps the value store simple and avoids unsafe code.
-- Sync operation adaptation is deferred. Users can wrap sync work in an async
-  block that returns the crate's `BoxFuture`.
+  current implementation. This keeps the value store simple and avoids unsafe
+  code.
+- Sync operation functions are not part of the current API. Users can wrap sync
+  work in an async block that returns the crate's `BoxFuture`.
 - `IntoInput<T>` is public so generated operation constructors can accept
   literals, `Value<T>` handles, or explicit `Input<T>` values.
 
@@ -40,12 +39,16 @@ does not reject ordinary skipped writes or deletes.
 
 ## Examples
 
-The phase-2 `read_after_write` example lives under `crates/rehearse/examples`
-so workspace clippy compiles it during the first review pass.
+The `read_after_write` example lives under `crates/rehearse/examples` so
+workspace clippy compiles it with the rest of the crate.
 
-The phase-6 `deploy` example is macro-first and demonstrates the complete MVP
-flow: construct a plan with `#[pipeline]`, render `describe()`, run dry-run, and
-then execute the same plan.
+The `deploy` example is macro-first and demonstrates the complete flow:
+construct a plan with `#[pipeline]`, render `describe()`, run dry-run, and then
+execute the same plan.
+
+The `configure_vscode` example uses `#[pipeline]` to add missing rust-analyzer
+settings to `.vscode/settings.json`, with an optional `--dry-run` flag that
+rehearses the write without changing the file.
 
 ## Static describe
 
@@ -65,10 +68,10 @@ then execute the same plan.
 - `#[operation]` supports async free functions with zero or one
   `#[context] &C` parameter, owned non-context parameters, and concrete
   `Result<Output, Error>` returns.
-- Contextless operations generate constructors generic over the eventual plan
+- Contextless operations generate constructors generic over the chosen plan
   context so they can compose into any compatible plan.
 - Sync operation functions, generic operation functions, and borrowed
-  non-context operation parameters are deferred.
+  non-context operation parameters are not part of the current macro surface.
 
 ## Pipeline macro
 
@@ -84,7 +87,7 @@ then execute the same plan.
   later operation constructors or returned as the final plan output; inspecting,
   borrowing, branching on, or transforming them is rejected.
 - Runtime control-flow nodes and arbitrary Rust control-flow lowering are
-  deferred.
+  not part of the current macro surface.
 
 ## Packaging
 

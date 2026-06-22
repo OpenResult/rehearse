@@ -169,9 +169,9 @@ async fn write_settings(
 
 #[pipeline]
 fn configure_vscode_settings(path: PathBuf) -> Plan<Workspace, SettingsResult, ConfigureError> {
-    let document = rehearse::step!(read_settings(path))?;
-    let update = rehearse::step!(add_missing_rust_analyzer_settings(document))?;
-    let result = rehearse::step!(write_settings(update))?;
+    let document = step!(read_settings(path))?;
+    let update = step!(add_missing_rust_analyzer_settings(document))?;
+    let result = step!(write_settings(update))?;
 
     Ok(result)
 }

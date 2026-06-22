@@ -247,8 +247,7 @@ let plan = builder.finish(deployment);
 
 ## Status
 
-Runtime phases 0-7 are implemented: ordered plans, execute, dry-run, reports,
-static describe output, documentation, `#[operation]`, `#[pipeline]`, `step!`,
-compiled examples, API docs, packaging metadata, and local publish smoke
-testing. The crate remains early local development and is marked
-`publish = false`.
+The current crate includes ordered plans, execute, dry-run, reports, static
+describe output, `#[operation]`, `#[pipeline]`, `step!`, compiled examples, API
+docs, packaging metadata, and local publish smoke testing. The crate remains
+early local development and is marked `publish = false`.
