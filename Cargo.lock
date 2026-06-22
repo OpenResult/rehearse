@@ -80,6 +80,7 @@ name = "rehearse"
 version = "0.1.0"
 dependencies = [
  "rehearse-macros",
+ "serde_json",
  "tokio",
  "trybuild",
 ]

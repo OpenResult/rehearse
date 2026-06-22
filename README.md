@@ -126,6 +126,14 @@ For a complete macro-based example covering describe, dry-run, and execute:
 cargo run -p rehearse --example deploy
 ```
 
+The `configure_vscode` example uses a `#[pipeline]` plan to add missing
+rust-analyzer settings to `.vscode/settings.json`:
+
+```bash
+cargo run -p rehearse --example configure_vscode -- --dry-run
+cargo run -p rehearse --example configure_vscode
+```
+
 ## Describe
 
 `describe()` renders static plan metadata and the default dry-run action for

@@ -17,5 +17,6 @@ macros = ["dep:rehearse-macros"]
 rehearse-macros = { version = "0.1.0", path = "../rehearse-macros", optional = true }
 
 [dev-dependencies]
+serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 trybuild = "1"
