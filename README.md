@@ -34,6 +34,9 @@ rehearse = "0.1.0"
 
 For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
 
+Release notes live in [CHANGELOG.md](CHANGELOG.md). The maintainer publish
+runbook lives in [RELEASE.md](RELEASE.md).
+
 ## Local Publish Smoke Test
 
 The repository includes a no-server local publish check that simulates registry

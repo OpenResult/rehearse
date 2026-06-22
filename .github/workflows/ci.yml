@@ -1,0 +1,38 @@
+name: CI
+
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Stable Rust
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-features
+
+      - name: Run local publish smoke test
+        run: |
+          rm -rf target/local-registry
+          scripts/publish-local.sh
+
+      - name: Check publish workflow help
+        run: cargo run -p rehearse --example deploy -- --help
