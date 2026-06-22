@@ -173,5 +173,3 @@ invoke operation bodies.
   work in an async block.
 - Generic pipeline functions, async pipeline constructors, and arbitrary Rust
   control-flow lowering are not currently supported.
-- The crate is still marked `publish = false` while registry and naming checks
-  remain open.

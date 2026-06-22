@@ -3,9 +3,9 @@ name = "rehearse-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Procedural macros for the rehearse operation planning crate."
 documentation = "https://docs.rs/rehearse-macros"
-publish = false
 
 [lib]
 proc-macro = true

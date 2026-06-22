@@ -42,9 +42,10 @@ does not reject ordinary skipped writes or deletes.
 The `read_after_write` example lives under `crates/rehearse/examples` so
 workspace clippy compiles it with the rest of the crate.
 
-The `deploy` example is macro-first and demonstrates the complete flow:
-construct a plan with `#[pipeline]`, render `describe()`, run dry-run, and then
-execute the same plan.
+The `deploy` example is the repository's guarded crates.io publish workflow. It
+constructs the publish sequence with `#[pipeline]`, renders `describe()`, runs
+safe dry-run checks by default, and requires `--execute` before invoking real
+`cargo publish` uploads.
 
 The `configure_vscode` example uses `#[pipeline]` to add missing rust-analyzer
 settings to `.vscode/settings.json`, with an optional `--dry-run` flag that
@@ -92,6 +93,7 @@ rehearses the write without changing the file.
 ## Packaging
 
 - Both crates inherit workspace version, edition, and license metadata.
+- The workspace uses the Apache-2.0 license for published packages.
 - The runtime crate's optional dependency on `rehearse-macros` includes a
   version as well as the local path so packaging checks model the eventual
   published dependency relationship.
@@ -100,8 +102,8 @@ rehearses the write without changing the file.
   until `rehearse-macros = 0.1.0` is available from the target registry. Cargo
   strips local paths during package preparation and resolves even optional
   dependencies from the registry.
-- The workspace now includes the dual MIT/Apache-2.0 license files. Both crates
-  remain `publish = false` until crate naming and registry checks are complete.
+- Both crates include repository metadata and are publish-enabled; real publish
+  is guarded by the `deploy` example's dry-run-first workflow.
 
 ## Local publish smoke test
 

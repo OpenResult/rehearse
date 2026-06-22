@@ -25,12 +25,14 @@ declared operations, and runners decide how each operation behaves.
 
 ## Install
 
-This crate is in early local development and is not published yet.
+Use the released crate from crates.io:
 
 ```toml
 [dependencies]
-rehearse = { path = "crates/rehearse" }
+rehearse = "0.1.0"
 ```
+
+For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
 
 ## Local Publish Smoke Test
 
@@ -120,10 +122,11 @@ fn deploy(credentials: String) -> Plan<Services, Deployment, DeployError> {
 let plan = deploy("secret".to_owned());
 ```
 
-For a complete macro-based example covering describe, dry-run, and execute:
+For a complete macro-based local example covering describe, dry-run, and
+execute:
 
 ```bash
-cargo run -p rehearse --example deploy
+cargo run -p rehearse --example read_after_write
 ```
 
 The `configure_vscode` example uses a `#[pipeline]` plan to add missing
@@ -132,6 +135,21 @@ rust-analyzer settings to `.vscode/settings.json`:
 ```bash
 cargo run -p rehearse --example configure_vscode -- --dry-run
 cargo run -p rehearse --example configure_vscode
+```
+
+The `deploy` example is this repository's guarded crates.io publish workflow.
+By default it describes the publish plan and runs safe dry-run checks; real
+`cargo publish` uploads require `--execute`.
+
+```bash
+cargo run -p rehearse --example deploy
+cargo run -p rehearse --example deploy -- --execute
+```
+
+Provide the crates.io token through `.env.local` without committing it:
+
+```bash
+export CARGO_REGISTRY_TOKEN=cio_your_crates_io_token_here
 ```
 
 ## Describe
@@ -249,5 +267,5 @@ let plan = builder.finish(deployment);
 
 The current crate includes ordered plans, execute, dry-run, reports, static
 describe output, `#[operation]`, `#[pipeline]`, `step!`, compiled examples, API
-docs, packaging metadata, and local publish smoke testing. The crate remains
-early local development and is marked `publish = false`.
+docs, Apache-2.0 packaging metadata, local publish smoke testing, and a guarded
+crates.io publish workflow example.

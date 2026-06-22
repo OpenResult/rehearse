@@ -122,7 +122,7 @@ error.
   demonstrates dry-run skipping a write while an independent later read still
   runs.
 - `cargo run -p rehearse --example deploy`
-  demonstrates the macro-first describe, dry-run, and execute flow.
+  runs the guarded crates.io publish workflow in safe dry-run mode.
 - `cargo run -p rehearse --example configure_vscode -- --dry-run`
   rehearses adding the project rust-analyzer settings to `.vscode/settings.json`.
 - `scripts/publish-local.sh`
