@@ -32,6 +32,32 @@ This crate is in early local development and is not published yet.
 rehearse = { path = "crates/rehearse" }
 ```
 
+## Local Publish Smoke Test
+
+The repository includes a no-server local publish check that simulates registry
+artifact resolution without writing to user-level Cargo state:
+
+```bash
+scripts/publish-local.sh
+```
+
+By default it recreates `target/local-registry`, packages both crates, writes a
+git-backed Cargo registry index and local `.crate` downloads, then compiles a
+throwaway consumer crate with:
+
+```toml
+rehearse = { version = "0.1.0", registry = "rehearse-local" }
+```
+
+Expected final output includes the generated `.crate` paths and:
+
+```text
+consumer checked successfully using registry 'rehearse-local'
+```
+
+Use `LOCAL_REGISTRY_DIR=/path/to/registry scripts/publish-local.sh` to choose a
+different generated registry location.
+
 ## Define Operations
 
 The `#[operation]` macro turns an async function into an operation constructor.
@@ -213,7 +239,8 @@ let plan = builder.finish(deployment);
 
 ## Status
 
-Runtime phases 0-6 are implemented: ordered plans, execute, dry-run, reports,
+Runtime phases 0-7 are implemented: ordered plans, execute, dry-run, reports,
 static describe output, documentation, `#[operation]`, `#[pipeline]`, `step!`,
-compiled examples, API docs, and packaging metadata. The crate remains early
-local development and is marked `publish = false`.
+compiled examples, API docs, packaging metadata, and local publish smoke
+testing. The crate remains early local development and is marked
+`publish = false`.

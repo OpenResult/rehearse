@@ -5,7 +5,8 @@
 The first implementation proved the non-macro runtime before adding procedural
 macros. Phase 4 added `#[operation]`; phase 5 added the restricted
 `#[pipeline]` and `step!` frontend. Phase 6 keeps the MVP shape intact and
-polishes documentation, examples, and packaging metadata.
+polishes documentation, examples, and packaging metadata. Phase 7 adds a local
+registry smoke test for package resolution before real registry publishing.
 
 ## Public shape
 
@@ -98,3 +99,20 @@ then execute the same plan.
   dependencies from the registry.
 - The workspace now includes the dual MIT/Apache-2.0 license files. Both crates
   remain `publish = false` until crate naming and registry checks are complete.
+
+## Local publish smoke test
+
+- `scripts/publish-local.sh` provides a no-server local registry smoke test
+  under `target/local-registry` by default.
+- The script writes a git-backed Cargo registry index and file-backed `.crate`
+  downloads, following Cargo's registry/index model:
+  <https://doc.rust-lang.org/cargo/reference/registries.html> and
+  <https://doc.rust-lang.org/cargo/reference/registry-index.html>.
+- `cargo publish --registry ...` is intentionally not used because Cargo publish
+  requires a registry API. The local smoke test simulates package resolution
+  instead: first publish `rehearse-macros` into the local index, stage `rehearse`
+  with a registry-qualified macro dependency, then compile a generated consumer
+  crate against `rehearse = { version = "0.1.0", registry = "rehearse-local" }`.
+- External dependencies in the local index are explicitly marked as crates.io
+  dependencies so Cargo does not try to resolve them from the local rehearse-only
+  registry.
