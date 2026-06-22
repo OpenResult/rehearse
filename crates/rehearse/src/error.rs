@@ -2,13 +2,19 @@ use crate::NodeId;
 use std::error::Error;
 use std::fmt;
 
+/// Error returned by execute mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecuteError<E> {
+    /// An operation body returned an error.
     Operation {
+        /// Node id of the failed operation.
         node: NodeId,
+        /// Operation name copied from metadata.
         name: String,
+        /// Original operation error.
         source: E,
     },
+    /// An internal plan or store invariant failed.
     Internal(String),
 }
 
@@ -39,6 +45,7 @@ where
     }
 }
 
+/// Error returned by [`DryRunReport::require_no_failures`](crate::DryRunReport::require_no_failures).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DryRunFailure {
     failure_count: usize,
@@ -49,6 +56,7 @@ impl DryRunFailure {
         Self { failure_count }
     }
 
+    /// Number of failed dry-run nodes.
     pub fn failure_count(&self) -> usize {
         self.failure_count
     }

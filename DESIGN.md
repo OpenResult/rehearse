@@ -4,7 +4,8 @@
 
 The first implementation proved the non-macro runtime before adding procedural
 macros. Phase 4 added `#[operation]`; phase 5 added the restricted
-`#[pipeline]` and `step!` frontend.
+`#[pipeline]` and `step!` frontend. Phase 6 keeps the MVP shape intact and
+polishes documentation, examples, and packaging metadata.
 
 ## Public shape
 
@@ -40,6 +41,10 @@ does not reject ordinary skipped writes or deletes.
 
 The phase-2 `read_after_write` example lives under `crates/rehearse/examples`
 so workspace clippy compiles it during the first review pass.
+
+The phase-6 `deploy` example is macro-first and demonstrates the complete MVP
+flow: construct a plan with `#[pipeline]`, render `describe()`, run dry-run, and
+then execute the same plan.
 
 ## Static describe
 
@@ -79,3 +84,17 @@ so workspace clippy compiles it during the first review pass.
   borrowing, branching on, or transforming them is rejected.
 - Runtime control-flow nodes and arbitrary Rust control-flow lowering are
   deferred.
+
+## Packaging
+
+- Both crates inherit workspace version, edition, and license metadata.
+- The runtime crate's optional dependency on `rehearse-macros` includes a
+  version as well as the local path so packaging checks model the eventual
+  published dependency relationship.
+- `cargo package -p rehearse-macros --allow-dirty` verifies locally.
+- `cargo package -p rehearse --allow-dirty` cannot prepare the upload package
+  until `rehearse-macros = 0.1.0` is available from the target registry. Cargo
+  strips local paths during package preparation and resolves even optional
+  dependencies from the registry.
+- The workspace now includes the dual MIT/Apache-2.0 license files. Both crates
+  remain `publish = false` until crate naming and registry checks are complete.

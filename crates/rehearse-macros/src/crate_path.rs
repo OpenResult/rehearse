@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 
 pub(crate) fn runtime_crate() -> syn::Result<TokenStream> {
     match crate_name("rehearse") {
-        Ok(FoundCrate::Itself) => Ok(quote!(crate)),
+        Ok(FoundCrate::Itself) => Ok(quote!(::rehearse)),
         Ok(FoundCrate::Name(name)) => {
             let ident = format_ident!("{}", name);
             Ok(quote!(::#ident))

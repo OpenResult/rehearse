@@ -1,5 +1,6 @@
 mod builder;
 pub(crate) mod node;
+#[doc(hidden)]
 pub mod store;
 mod value;
 
@@ -11,6 +12,10 @@ use crate::{DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, SafeDryRu
 use node::ErasedNode;
 use std::marker::PhantomData;
 
+/// A reusable ordered operation plan.
+///
+/// `C` is the shared context type, `T` is the final output type, and `E` is the
+/// common operation error type for the plan.
 pub struct Plan<C, T, E> {
     pub(crate) name: String,
     pub(crate) nodes: Vec<Box<dyn ErasedNode<C, E>>>,
@@ -24,22 +29,27 @@ where
     T: Clone + Send + Sync + 'static,
     E: Send + 'static,
 {
+    /// Returns the plan name.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the number of nodes in the plan.
     pub fn len(&self) -> usize {
         self.nodes.len()
     }
 
+    /// Returns true when the plan contains no nodes.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
 
+    /// Returns the typed final output handle.
     pub fn output(&self) -> Value<T> {
         self.output
     }
 
+    /// Iterates static node metadata in plan order.
     pub fn nodes(&self) -> impl Iterator<Item = PlanNode<'_>> {
         self.nodes.iter().map(|node| PlanNode {
             id: node.id(),
@@ -49,10 +59,12 @@ where
         })
     }
 
+    /// Describes the plan using [`SafeDryRun`].
     pub fn describe(&self) -> PlanDescription {
         self.describe_with_policy(&SafeDryRun)
     }
 
+    /// Describes the plan using a caller-supplied dry-run policy.
     pub fn describe_with_policy<P>(&self, policy: &P) -> PlanDescription
     where
         P: DryRunPolicy,
@@ -60,14 +72,17 @@ where
         crate::describe::describe_plan(&self.name, &self.nodes, policy)
     }
 
+    /// Executes every operation in plan order and stops at the first failure.
     pub async fn execute(&self, context: &C) -> Result<T, ExecuteError<E>> {
         runner::execute::execute(self, context).await
     }
 
+    /// Runs the plan with [`SafeDryRun`].
     pub async fn dry_run(&self, context: &C) -> DryRunReport<E> {
         self.dry_run_with_policy(context, &SafeDryRun).await
     }
 
+    /// Runs the plan with a caller-supplied dry-run policy.
     pub async fn dry_run_with_policy<P>(&self, context: &C, policy: &P) -> DryRunReport<E>
     where
         P: DryRunPolicy,
@@ -76,6 +91,7 @@ where
     }
 }
 
+/// Static metadata view for one plan node.
 #[derive(Debug, Clone, Copy)]
 pub struct PlanNode<'a> {
     id: NodeId,
@@ -85,18 +101,22 @@ pub struct PlanNode<'a> {
 }
 
 impl<'a> PlanNode<'a> {
+    /// Returns the node id.
     pub fn id(&self) -> NodeId {
         self.id
     }
 
+    /// Returns the operation name.
     pub fn name(&self) -> &'a str {
         self.name
     }
 
+    /// Returns the operation impact.
     pub fn impact(&self) -> crate::Impact {
         self.impact
     }
 
+    /// Returns value dependencies by producer node id.
     pub fn dependencies(&self) -> &'a [NodeId] {
         self.dependencies
     }

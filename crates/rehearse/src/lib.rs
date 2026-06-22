@@ -1,7 +1,15 @@
-//! Runtime planning engine for `rehearse`.
+//! Build typed operation plans, then describe, dry-run, or execute them.
 //!
-//! This crate exposes typed operation handles, ordered plans, execute mode,
-//! dry-run mode, and the optional macro frontend.
+//! `rehearse` records declared operation impact. It does not infer effects from
+//! arbitrary Rust code. A pipeline builds a static ordered [`Plan`], and the
+//! runner decides whether each operation is only described, safely rehearsed, or
+//! fully executed.
+//!
+//! The default macro frontend is available through [`operation`] and
+//! [`pipeline`]. The manual [`PlanBuilder`] API remains public for tests and
+//! lower-level integrations.
+
+#![forbid(unsafe_code)]
 
 mod describe;
 mod error;
@@ -13,7 +21,7 @@ mod report;
 #[doc(hidden)]
 pub mod __private;
 pub mod plan;
-pub mod runner;
+mod runner;
 
 pub use describe::{PlanDescription, PlanDescriptionRow};
 pub use error::{DryRunFailure, ExecuteError};

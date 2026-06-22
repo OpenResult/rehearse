@@ -4,8 +4,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+/// Runtime-independent boxed future used by operation executors.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// Static metadata attached to an operation node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationMetadata {
     name: String,
@@ -13,6 +15,7 @@ pub struct OperationMetadata {
 }
 
 impl OperationMetadata {
+    /// Creates operation metadata from a display name and declared impact.
     pub fn new(name: impl Into<String>, impact: Impact) -> Self {
         Self {
             name: name.into(),
@@ -20,15 +23,22 @@ impl OperationMetadata {
         }
     }
 
+    /// Returns the operation name used in descriptions, reports, and errors.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the operation's declared impact.
     pub fn impact(&self) -> Impact {
         self.impact
     }
 }
 
+/// A delayed operation descriptor.
+///
+/// Constructing an `Operation` records metadata, inputs, and the executor
+/// closure. The executor body runs only through
+/// [`Plan::execute`](crate::Plan::execute) or dry-run when policy allows it.
 pub struct Operation<C, T, E> {
     metadata: OperationMetadata,
     dependencies: Vec<NodeId>,
@@ -45,6 +55,11 @@ where
     T: Clone + Send + Sync + 'static,
     E: Send + 'static,
 {
+    /// Creates a new operation descriptor.
+    ///
+    /// `inputs` can be `()`, one [`Input`](crate::Input), or tuples up to three
+    /// inputs. Value inputs are resolved from the per-run store before the
+    /// executor is invoked.
     pub fn new<I, F>(metadata: OperationMetadata, inputs: I, executor: F) -> Self
     where
         I: OperationInputs,
@@ -72,10 +87,12 @@ where
         }
     }
 
+    /// Returns this operation's static metadata.
     pub fn metadata(&self) -> &OperationMetadata {
         &self.metadata
     }
 
+    /// Returns node ids for value inputs consumed by this operation.
     pub fn dependencies(&self) -> &[NodeId] {
         &self.dependencies
     }

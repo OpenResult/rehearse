@@ -82,16 +82,22 @@ static plan. Calling the function builds a plan; it does not run operation
 bodies.
 
 ```rust
-use rehearse::{pipeline, step, Plan};
+use rehearse::{pipeline, Plan};
 
 #[pipeline]
 fn deploy(credentials: String) -> Plan<Services, Deployment, DeployError> {
-    let session = step!(login(credentials))?;
-    let deployment = step!(apply_changes(session))?;
+    let session = rehearse::step!(login(credentials))?;
+    let deployment = rehearse::step!(apply_changes(session))?;
     Ok(deployment)
 }
 
 let plan = deploy("secret".to_owned());
+```
+
+For a complete macro-based example covering describe, dry-run, and execute:
+
+```bash
+cargo run -p rehearse --example deploy
 ```
 
 ## Describe
@@ -207,6 +213,7 @@ let plan = builder.finish(deployment);
 
 ## Status
 
-Runtime phases 0-5 are implemented: ordered plans, execute, dry-run, reports,
-static describe output, documentation, `#[operation]`, `#[pipeline]`, and
-`step!`. Polish and packaging work remains.
+Runtime phases 0-6 are implemented: ordered plans, execute, dry-run, reports,
+static describe output, documentation, `#[operation]`, `#[pipeline]`, `step!`,
+compiled examples, API docs, and packaging metadata. The crate remains early
+local development and is marked `publish = false`.

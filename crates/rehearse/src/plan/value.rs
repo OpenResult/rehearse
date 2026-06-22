@@ -2,6 +2,7 @@ use super::store::{ResolveInputError, ValueStore};
 use std::fmt;
 use std::marker::PhantomData;
 
+/// Stable identifier for a node in one plan.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(usize);
 
@@ -10,6 +11,7 @@ impl NodeId {
         Self(index)
     }
 
+    /// Returns the zero-based node index.
     pub fn index(self) -> usize {
         self.0
     }
@@ -27,6 +29,10 @@ impl fmt::Display for NodeId {
     }
 }
 
+/// Typed handle to a value produced by a plan node.
+///
+/// `Value<T>` is copyable regardless of `T`; it stores only the producing node
+/// id and a type marker.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Value<T> {
     node: NodeId,
@@ -49,28 +55,36 @@ impl<T> Value<T> {
         }
     }
 
+    /// Returns the producing node id.
     pub fn node(self) -> NodeId {
         self.node
     }
 }
 
+/// Operation input: either a literal plan-time value or a value from a node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Input<T> {
+    /// Literal value cloned into the executor when the operation runs.
     Literal(T),
+    /// Handle to a value produced by an earlier node.
     Value(Value<T>),
 }
 
 impl<T> Input<T> {
+    /// Creates a literal input.
     pub fn literal(value: T) -> Self {
         Self::Literal(value)
     }
 
+    /// Creates a value dependency input.
     pub fn value(value: Value<T>) -> Self {
         Self::Value(value)
     }
 }
 
+/// Converts values accepted by generated operation constructors into [`Input`].
 pub trait IntoInput<T> {
+    /// Converts this value into an operation input.
     fn into_input(self) -> Input<T>;
 }
 
@@ -92,7 +106,11 @@ impl<T> IntoInput<T> for T {
     }
 }
 
+/// Internal input tuple abstraction used by [`Operation`](crate::Operation).
+///
+/// Implemented for `()`, one [`Input`], and tuples of up to three inputs.
 pub trait OperationInputs: Send + Sync + 'static {
+    /// Resolved value shape passed to an operation executor.
     type Resolved: Send + 'static;
 
     #[doc(hidden)]

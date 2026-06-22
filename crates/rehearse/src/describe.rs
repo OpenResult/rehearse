@@ -1,6 +1,10 @@
 use crate::{DryRunAction, DryRunPolicy, Impact, NodeId};
 use std::fmt;
 
+/// Owned static description of a plan.
+///
+/// A description is copied from plan metadata and policy decisions. It never
+/// touches context, value stores, or operation bodies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanDescription {
     plan_name: String,
@@ -15,18 +19,22 @@ impl PlanDescription {
         }
     }
 
+    /// Returns the described plan name.
     pub fn plan_name(&self) -> &str {
         &self.plan_name
     }
 
+    /// Iterates description rows in plan order.
     pub fn iter(&self) -> impl Iterator<Item = &PlanDescriptionRow> {
         self.rows.iter()
     }
 
+    /// Returns the number of described nodes.
     pub fn len(&self) -> usize {
         self.rows.len()
     }
 
+    /// Returns true when the description contains no nodes.
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
@@ -54,6 +62,7 @@ impl fmt::Display for PlanDescription {
     }
 }
 
+/// Static description row for one plan node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanDescriptionRow {
     node: NodeId,
@@ -80,22 +89,27 @@ impl PlanDescriptionRow {
         }
     }
 
+    /// Returns the node id.
     pub fn node(&self) -> NodeId {
         self.node
     }
 
+    /// Returns the 1-based position in the plan.
     pub fn position(&self) -> usize {
         self.position
     }
 
+    /// Returns the operation name.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the operation's declared impact.
     pub fn impact(&self) -> Impact {
         self.impact
     }
 
+    /// Returns the dry-run action selected by the policy used for description.
     pub fn dry_run_action(&self) -> DryRunAction {
         self.dry_run_action
     }

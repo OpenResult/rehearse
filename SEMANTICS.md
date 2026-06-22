@@ -2,6 +2,9 @@
 
 This document describes the current runtime semantics and macro frontend.
 
+The public API docs on the crate items are the primary reference for exact
+method signatures. This document focuses on behavioral guarantees.
+
 ## Declared Impact
 
 `rehearse` records declared impact; it does not infer effects from arbitrary
@@ -170,3 +173,5 @@ invoke operation bodies.
   block.
 - Generic pipeline functions, async pipeline constructors, and arbitrary Rust
   control-flow lowering are deferred.
+- The crate is still marked `publish = false` while registry and naming checks
+  remain open.
