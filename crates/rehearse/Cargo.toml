@@ -6,6 +6,7 @@ license.workspace = true
 repository.workspace = true
 description = "Effect-aware operation planning with describe, dry-run, and execute modes."
 documentation = "https://docs.rs/rehearse"
+readme = "README.md"
 keywords = ["dry-run", "workflow", "planning", "effects"]
 categories = ["asynchronous", "development-tools"]
 

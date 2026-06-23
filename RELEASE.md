@@ -34,6 +34,13 @@ rm -rf target/local-registry
 scripts/publish-local.sh
 ```
 
+Confirm both published package archives include their crates.io READMEs:
+
+```bash
+cargo package -p rehearse --list | rg '^README.md$'
+cargo package -p rehearse-macros --list | rg '^README.md$'
+```
+
 Run the guarded publish workflow in safe dry-run mode:
 
 ```bash
