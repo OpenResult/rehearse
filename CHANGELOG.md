@@ -6,6 +6,19 @@ All notable changes to this project are documented here.
 
 No changes yet.
 
+## 0.2.0 - 2026-06-23
+
+- Added progress listeners for describe, dry-run, and execute traversals.
+- Added the seeded `conditional_rollout` example.
+- Added `ConsoleProgress`, `Plan::to_mermaid()`, `Operation::sync`, and
+  `DryRunReport::require_complete()`.
+- Added optional `serde` support for public description, report, status, and
+  error types.
+- Expanded operation input support from three to eight non-context inputs.
+- Improved describe/report display with dynamic columns and dependency names
+  for blocked dry-run nodes.
+- Standardized example CLI parsing with `clap`.
+
 ## 0.1.1 - 2026-06-22
 
 - Added `Plan::describe_execution()` for execute-mode static plan rendering

@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "rehearse"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "clap",
  "rehearse-macros",
@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "rehearse-macros"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

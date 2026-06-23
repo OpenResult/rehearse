@@ -147,7 +147,8 @@ and argument validation consistent.
   requires a registry API. The local smoke test simulates package resolution
   instead: first publish `rehearse-macros` into the local index, stage `rehearse`
   with a registry-qualified macro dependency, then compile a generated consumer
-  crate against `rehearse = { version = "0.1.1", registry = "rehearse-local" }`.
+  crate against
+  `rehearse = { version = "0.2.0", registry = "rehearse-local", features = ["serde"] }`.
 - External dependencies in the local index are explicitly marked as crates.io
   dependencies so Cargo does not try to resolve them from the local rehearse-only
   registry.

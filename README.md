@@ -29,7 +29,7 @@ Use the released crate from crates.io:
 
 ```toml
 [dependencies]
-rehearse = "0.1.1"
+rehearse = "0.2.0"
 ```
 
 For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
@@ -42,7 +42,7 @@ types with:
 
 ```toml
 [dependencies]
-rehearse = { version = "0.1.1", features = ["serde"] }
+rehearse = { version = "0.2.0", features = ["serde"] }
 ```
 
 ## Five-Minute Quickstart
@@ -117,7 +117,7 @@ git-backed Cargo registry index and local `.crate` downloads, then compiles a
 throwaway consumer crate with:
 
 ```toml
-rehearse = { version = "0.1.1", registry = "rehearse-local" }
+rehearse = { version = "0.2.0", registry = "rehearse-local", features = ["serde"] }
 ```
 
 Expected final output includes the generated `.crate` paths and:

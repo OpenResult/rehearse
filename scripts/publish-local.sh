@@ -12,7 +12,7 @@ CARGO_HOME_DIR="$REGISTRY_DIR/cargo-home"
 REGISTRY_NAME="rehearse-local"
 REGISTRY_URL="file://$INDEX_DIR"
 CRATES_IO_INDEX="https://github.com/rust-lang/crates.io-index"
-VERSION="0.1.1"
+VERSION="0.2.0"
 
 log() {
     printf '[local-publish] %s\n' "$*"
@@ -78,7 +78,7 @@ write_runtime_index() {
     path="$(crate_index_path "rehearse")"
     mkdir -p "$(dirname "$path")"
     cat > "$path" <<EOF
-{"name":"rehearse","vers":"$VERSION","deps":[{"name":"rehearse-macros","req":"^$VERSION","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null,"package":"rehearse-macros"}],"cksum":"$checksum","features":{"default":["macros"],"macros":["dep:rehearse-macros"]},"yanked":false,"links":null}
+{"name":"rehearse","vers":"$VERSION","deps":[{"name":"rehearse-macros","req":"^$VERSION","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null,"package":"rehearse-macros"},{"name":"serde","req":"^1","features":["derive"],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":"$CRATES_IO_INDEX","package":"serde"}],"cksum":"$checksum","features":{"default":["macros"],"macros":["dep:rehearse-macros"],"serde":["dep:serde"]},"yanked":false,"links":null}
 EOF
 }
 
@@ -112,7 +112,7 @@ stage_workspace() {
     )
 
     sed -i.bak \
-        's|rehearse-macros = { version = "0.1.1", path = "../rehearse-macros", optional = true }|rehearse-macros = { version = "0.1.1", registry = "rehearse-local", optional = true }|' \
+        "s|rehearse-macros = { version = \"$VERSION\", path = \"../rehearse-macros\", optional = true }|rehearse-macros = { version = \"$VERSION\", registry = \"$REGISTRY_NAME\", optional = true }|" \
         "$STAGE_DIR/crates/rehearse/Cargo.toml"
     rm "$STAGE_DIR/crates/rehearse/Cargo.toml.bak"
 }
@@ -127,12 +127,12 @@ EOF
     cat > "$CONSUMER_DIR/Cargo.toml" <<EOF
 [package]
 name = "rehearse-local-consumer"
-version = "0.1.1"
+version = "$VERSION"
 edition = "2021"
 publish = false
 
 [dependencies]
-rehearse = { version = "$VERSION", registry = "$REGISTRY_NAME" }
+rehearse = { version = "$VERSION", registry = "$REGISTRY_NAME", features = ["serde"] }
 
 [workspace]
 EOF
@@ -215,8 +215,8 @@ log "checking consumer crate"
     CARGO_HOME="$CARGO_HOME_DIR" cargo check
     TREE_OUTPUT="$(CARGO_HOME="$CARGO_HOME_DIR" cargo tree)"
     printf '%s\n' "$TREE_OUTPUT"
-    grep -F 'rehearse v0.1.1 (registry `rehearse-local`)' <<< "$TREE_OUTPUT" >/dev/null
-    grep -F 'rehearse-macros v0.1.1 (proc-macro) (registry `rehearse-local`)' <<< "$TREE_OUTPUT" >/dev/null
+    grep -F "rehearse v$VERSION (registry \`$REGISTRY_NAME\`)" <<< "$TREE_OUTPUT" >/dev/null
+    grep -F "rehearse-macros v$VERSION (proc-macro) (registry \`$REGISTRY_NAME\`)" <<< "$TREE_OUTPUT" >/dev/null
 )
 
 log "local registry contains:"

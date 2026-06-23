@@ -69,8 +69,8 @@ curl -fsS -H 'User-Agent: rehearse-release-check (https://github.com/OpenResult/
     https://crates.io/api/v1/crates/rehearse | python3 -m json.tool
 curl -fsS -H 'User-Agent: rehearse-release-check (https://github.com/OpenResult/rehearse)' \
     https://crates.io/api/v1/crates/rehearse-macros | python3 -m json.tool
-curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse/0.1.1/rehearse/
-curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse-macros/0.1.1/rehearse_macros/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse/0.2.0/rehearse/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse-macros/0.2.0/rehearse_macros/
 ```
 
 Compile a consumer from crates.io under `target/published-consumer`:
@@ -81,12 +81,12 @@ mkdir -p target/published-consumer/src
 cat > target/published-consumer/Cargo.toml <<'EOF'
 [package]
 name = "published-consumer"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
 [dependencies]
-rehearse = "0.1.1"
+rehearse = "0.2.0"
 
 [workspace]
 EOF
@@ -126,8 +126,8 @@ After the publish and verification succeed, create and push the release tag if
 it does not already exist:
 
 ```bash
-git tag -a v0.1.1 -m "v0.1.1"
-git push origin v0.1.1
+git tag -a v0.2.0 -m "v0.2.0"
+git push origin v0.2.0
 ```
 
 ## Follow-Up
