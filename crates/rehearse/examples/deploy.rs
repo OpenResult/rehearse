@@ -1,3 +1,4 @@
+use clap::Parser;
 use rehearse::{operation, pipeline, ConsoleProgress, ConsoleProgressOptions, Plan};
 use serde_json::Value as JsonValue;
 use std::env;
@@ -389,7 +390,7 @@ fn deploy(input: PublishInput) -> Plan<Workspace, PublishOutcome, PublishError> 
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse()?;
+    let args = Args::parse();
     let workspace = Workspace {
         root: env::current_dir()?,
     };
@@ -421,53 +422,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Run the guarded crates.io publish workflow")]
 struct Args {
+    /// Execute real cargo publish uploads instead of safe dry-run checks.
+    #[arg(long)]
     execute: bool,
+    /// Environment file to read for CARGO_REGISTRY_TOKEN.
+    #[arg(long, default_value = DEFAULT_ENV_FILE, value_name = "PATH")]
     env_file: PathBuf,
-}
-
-impl Args {
-    fn parse() -> Result<Self, PublishError> {
-        let mut execute = false;
-        let mut env_file = PathBuf::from(DEFAULT_ENV_FILE);
-        let mut args = env::args().skip(1);
-
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "--execute" => execute = true,
-                "--env-file" => {
-                    let value = args
-                        .next()
-                        .ok_or_else(|| PublishError::new("--env-file requires a path"))?;
-                    env_file = PathBuf::from(value);
-                }
-                "-h" | "--help" => {
-                    print_usage();
-                    std::process::exit(0);
-                }
-                _ if arg.starts_with("--env-file=") => {
-                    let value = arg
-                        .split_once('=')
-                        .map(|(_, value)| value)
-                        .filter(|value| !value.is_empty())
-                        .ok_or_else(|| PublishError::new("--env-file requires a path"))?;
-                    env_file = PathBuf::from(value);
-                }
-                _ => {
-                    return Err(PublishError::new(format!("unsupported argument: {arg}")));
-                }
-            }
-        }
-
-        Ok(Self { execute, env_file })
-    }
-}
-
-fn print_usage() {
-    println!("Usage: cargo run -p rehearse --example deploy -- [--execute] [--env-file PATH]");
-    println!();
-    println!("Default mode describes the publish plan and runs safe dry-run checks.");
-    println!("Use --execute only when {TOKEN_VAR} is present and you intend to publish.");
 }
 
 fn publish_progress() -> ConsoleProgress {

@@ -56,6 +56,10 @@ rehearses the write without changing the file.
 Examples that need live node progress use the shared `ConsoleProgress` listener
 instead of carrying local listener implementations.
 
+Examples that expose command-line flags use `clap` through dev-dependencies.
+This keeps the runtime crate dependency surface small while making example help
+and argument validation consistent.
+
 ## Static describe
 
 - `Plan::describe()` returns an owned `PlanDescription` snapshot using

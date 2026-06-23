@@ -1,3 +1,4 @@
+use clap::Parser;
 use rehearse::{operation, pipeline, ConsoleProgress, ConsoleProgressOptions, Plan};
 use std::error::Error;
 use std::fmt;
@@ -8,12 +9,6 @@ const DEFAULT_SEED: u64 = 7;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RolloutError(String);
-
-impl RolloutError {
-    fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
-    }
-}
 
 impl fmt::Display for RolloutError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -377,7 +372,7 @@ fn conditional_rollout(seed: u64) -> Plan<RolloutServices, RolloutSummary, Rollo
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse()?;
+    let args = Args::parse();
     let services = RolloutServices {
         target: "checkout-service".to_owned(),
     };
@@ -402,46 +397,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Rehearse or execute a simulated feature rollout")]
 struct Args {
+    /// Execute the rollout instead of running the safe dry-run.
+    #[arg(long)]
     execute: bool,
+    /// Seed controlling simulated conditions and per-step delays.
+    #[arg(long, default_value_t = DEFAULT_SEED)]
     seed: u64,
-}
-
-impl Args {
-    fn parse() -> Result<Self, RolloutError> {
-        let mut execute = false;
-        let mut seed = DEFAULT_SEED;
-        let mut args = std::env::args().skip(1);
-
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "--execute" => execute = true,
-                "--seed" => {
-                    let value = args
-                        .next()
-                        .ok_or_else(|| RolloutError::new("--seed requires a value"))?;
-                    seed = parse_seed(&value)?;
-                }
-                "-h" | "--help" => {
-                    print_usage();
-                    std::process::exit(0);
-                }
-                _ if arg.starts_with("--seed=") => {
-                    let value = arg
-                        .split_once('=')
-                        .map(|(_, value)| value)
-                        .filter(|value| !value.is_empty())
-                        .ok_or_else(|| RolloutError::new("--seed requires a value"))?;
-                    seed = parse_seed(value)?;
-                }
-                _ => {
-                    return Err(RolloutError::new(format!("unsupported argument: {arg}")));
-                }
-            }
-        }
-
-        Ok(Self { execute, seed })
-    }
 }
 
 fn rollout_progress() -> ConsoleProgress {
@@ -488,21 +452,6 @@ fn sleep(delay: StepDelay) {
 fn rollout_token(seed: u64, percent: u8) -> u64 {
     let mut rng = DemoRng::new(seed ^ u64::from(percent));
     rng.next_u64()
-}
-
-fn parse_seed(value: &str) -> Result<u64, RolloutError> {
-    value
-        .parse()
-        .map_err(|error| RolloutError::new(format!("invalid seed `{value}`: {error}")))
-}
-
-fn print_usage() {
-    println!(
-        "Usage: cargo run -p rehearse --example conditional_rollout -- [--seed N] [--execute]"
-    );
-    println!();
-    println!("Default mode describes the plan and runs a safe dry-run.");
-    println!("The seed controls simulated conditions and per-step delays.");
 }
 
 fn print_summary(summary: &RolloutSummary) {

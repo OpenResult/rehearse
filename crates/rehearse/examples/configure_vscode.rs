@@ -1,3 +1,4 @@
+use clap::Parser;
 use rehearse::{operation, pipeline, Plan};
 use serde_json::{json, Map, Value};
 use std::error::Error;
@@ -178,7 +179,7 @@ fn configure_vscode_settings(path: PathBuf) -> Plan<Workspace, SettingsResult, C
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse()?;
+    let args = Args::parse();
     let workspace = Workspace {
         root: std::env::current_dir()?,
     };
@@ -201,47 +202,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Configure VS Code rust-analyzer settings for this workspace")]
 struct Args {
+    /// Rehearse the write without changing the settings file.
+    #[arg(long)]
     dry_run: bool,
+    /// Settings file path, relative to the current workspace unless absolute.
+    #[arg(value_name = "settings-path", default_value = DEFAULT_SETTINGS_PATH)]
     path: PathBuf,
-}
-
-impl Args {
-    fn parse() -> Result<Self, ConfigureError> {
-        let mut dry_run = false;
-        let mut path = None;
-
-        for arg in std::env::args().skip(1) {
-            match arg.as_str() {
-                "--dry-run" => dry_run = true,
-                "-h" | "--help" => {
-                    print_usage();
-                    std::process::exit(0);
-                }
-                _ if arg.starts_with('-') => {
-                    return Err(ConfigureError::new(format!("unsupported argument: {arg}")));
-                }
-                _ => {
-                    if path.replace(PathBuf::from(arg)).is_some() {
-                        return Err(ConfigureError::new(
-                            "expected at most one settings path argument",
-                        ));
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            dry_run,
-            path: path.unwrap_or_else(|| PathBuf::from(DEFAULT_SETTINGS_PATH)),
-        })
-    }
-}
-
-fn print_usage() {
-    println!(
-        "Usage: cargo run -p rehearse --example configure_vscode -- [--dry-run] [settings-path]"
-    );
 }
 
 fn required_settings() -> [(&'static str, Value); 6] {
