@@ -1,13 +1,8 @@
-use rehearse::{
-    operation, pipeline, Plan, ProgressEvent, ProgressListener, ProgressMode, ProgressNode,
-    ProgressOutcome,
-};
-use std::collections::HashMap;
+use rehearse::{operation, pipeline, ConsoleProgress, ConsoleProgressOptions, Plan};
 use std::error::Error;
 use std::fmt;
-use std::io::{self, Write};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const DEFAULT_SEED: u64 = 7;
 
@@ -390,13 +385,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if args.execute {
         println!("{}", plan.describe_execution());
-        let mut progress = ConsoleProgress::default();
+        let mut progress = rollout_progress();
         let summary = plan.execute_with_listener(&services, &mut progress).await?;
         println!();
         print_summary(&summary);
     } else {
         println!("{}", plan.describe());
-        let mut progress = ConsoleProgress::default();
+        let mut progress = rollout_progress();
         let report = plan.dry_run_with_listener(&services, &mut progress).await;
         println!();
         println!("{report}");
@@ -449,57 +444,11 @@ impl Args {
     }
 }
 
-#[derive(Default)]
-struct ConsoleProgress {
-    starts: HashMap<rehearse::NodeId, Instant>,
-}
-
-impl ProgressListener<RolloutError> for ConsoleProgress {
-    fn on_event(&mut self, event: ProgressEvent<'_, RolloutError>) {
-        match event {
-            ProgressEvent::NodeStarted { mode, node }
-                if matches!(mode, ProgressMode::DryRun | ProgressMode::Execute) =>
-            {
-                self.print_started(mode, node);
-            }
-            ProgressEvent::NodeFinished {
-                mode,
-                node,
-                outcome,
-            } if matches!(mode, ProgressMode::DryRun | ProgressMode::Execute) => {
-                self.print_finished(mode, node, outcome);
-            }
-            _ => {}
-        }
-    }
-}
-
-impl ConsoleProgress {
-    fn print_started(&mut self, mode: ProgressMode, node: ProgressNode<'_>) {
-        self.starts.insert(node.node(), Instant::now());
-        print!(
-            "[{} {}/{}] {:<25} ... ",
-            mode_label(mode),
-            node.position(),
-            node.total(),
-            node.name()
-        );
-        drop(io::stdout().flush());
-    }
-
-    fn print_finished(
-        &mut self,
-        _mode: ProgressMode,
-        node: ProgressNode<'_>,
-        outcome: ProgressOutcome<'_, RolloutError>,
-    ) {
-        let elapsed = self
-            .starts
-            .remove(&node.node())
-            .map(|start| start.elapsed())
-            .unwrap_or_default();
-        println!("{} ({} ms)", progress_status(outcome), elapsed.as_millis());
-    }
+fn rollout_progress() -> ConsoleProgress {
+    ConsoleProgress::with_options(ConsoleProgressOptions {
+        show_impact: false,
+        ..ConsoleProgressOptions::default()
+    })
 }
 
 struct DemoRng {
@@ -545,27 +494,6 @@ fn parse_seed(value: &str) -> Result<u64, RolloutError> {
     value
         .parse()
         .map_err(|error| RolloutError::new(format!("invalid seed `{value}`: {error}")))
-}
-
-fn mode_label(mode: ProgressMode) -> &'static str {
-    match mode {
-        ProgressMode::Describe => "describe",
-        ProgressMode::DryRun => "dry-run",
-        ProgressMode::Execute => "execute",
-    }
-}
-
-fn progress_status(outcome: ProgressOutcome<'_, RolloutError>) -> &'static str {
-    match outcome {
-        ProgressOutcome::Described { .. } => "described",
-        ProgressOutcome::Executed => "ok",
-        ProgressOutcome::Skipped { .. } => "skipped",
-        ProgressOutcome::Denied { .. } => "denied",
-        ProgressOutcome::Blocked { .. } => "blocked",
-        ProgressOutcome::UnavailableDependencies { .. } => "unavailable dependencies",
-        ProgressOutcome::Failed { .. } => "failed",
-        ProgressOutcome::Internal { .. } => "internal error",
-    }
 }
 
 fn print_usage() {

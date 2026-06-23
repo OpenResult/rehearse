@@ -3,6 +3,8 @@ use std::fmt;
 
 /// The action a dry-run policy assigns to an operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum DryRunAction {
     /// Invoke the operation body during dry-run.
     Run,

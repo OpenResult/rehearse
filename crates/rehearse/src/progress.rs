@@ -1,4 +1,7 @@
 use crate::{DryRunAction, DryRunStatus, Impact, NodeId};
+use std::collections::HashMap;
+use std::io::{self, Write};
+use std::time::Instant;
 
 /// Runtime mode that emitted a progress event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,4 +206,160 @@ pub struct NoopProgress;
 
 impl<E> ProgressListener<E> for NoopProgress {
     fn on_event(&mut self, _event: ProgressEvent<'_, E>) {}
+}
+
+/// Options for [`ConsoleProgress`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConsoleProgressOptions {
+    /// Emit GitHub Actions notice lines instead of inline terminal progress.
+    pub github_actions: bool,
+    /// Include elapsed milliseconds in terminal output.
+    pub show_elapsed: bool,
+    /// Include declared impact in the started-node line.
+    pub show_impact: bool,
+}
+
+impl Default for ConsoleProgressOptions {
+    fn default() -> Self {
+        Self {
+            github_actions: std::env::var_os("GITHUB_ACTIONS").is_some(),
+            show_elapsed: true,
+            show_impact: true,
+        }
+    }
+}
+
+/// Progress listener that prints concise progress to stdout.
+///
+/// This helper is intended for examples and simple CLIs. Applications that need
+/// custom logging or structured telemetry should implement [`ProgressListener`]
+/// directly.
+#[derive(Debug, Default)]
+pub struct ConsoleProgress {
+    options: ConsoleProgressOptions,
+    starts: HashMap<NodeId, Instant>,
+}
+
+impl ConsoleProgress {
+    /// Creates a console progress listener with default options.
+    pub fn new() -> Self {
+        Self::with_options(ConsoleProgressOptions::default())
+    }
+
+    /// Creates a console progress listener with explicit options.
+    pub fn with_options(options: ConsoleProgressOptions) -> Self {
+        Self {
+            options,
+            starts: HashMap::new(),
+        }
+    }
+
+    fn print_started(&mut self, mode: ProgressMode, node: ProgressNode<'_>) {
+        self.starts.insert(node.node(), Instant::now());
+
+        if self.options.github_actions {
+            println!(
+                "::notice title=rehearse::{} [{}/{}] {} ({}) started",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name(),
+                node.impact()
+            );
+            return;
+        }
+
+        if self.options.show_impact {
+            print!(
+                "[{} {}/{}] {} ({}) ... ",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name(),
+                node.impact()
+            );
+        } else {
+            print!(
+                "[{} {}/{}] {} ... ",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name()
+            );
+        }
+
+        drop(io::stdout().flush());
+    }
+
+    fn print_finished<E>(
+        &mut self,
+        mode: ProgressMode,
+        node: ProgressNode<'_>,
+        outcome: ProgressOutcome<'_, E>,
+    ) {
+        let status = progress_status(outcome);
+
+        if self.options.github_actions {
+            println!(
+                "::notice title=rehearse::{} [{}/{}] {} {status}",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name()
+            );
+            return;
+        }
+
+        if self.options.show_elapsed {
+            let elapsed = self
+                .starts
+                .remove(&node.node())
+                .map(|start| start.elapsed())
+                .unwrap_or_default();
+            println!("{status} ({} ms)", elapsed.as_millis());
+        } else {
+            println!("{status}");
+        }
+    }
+}
+
+impl<E> ProgressListener<E> for ConsoleProgress {
+    fn on_event(&mut self, event: ProgressEvent<'_, E>) {
+        match event {
+            ProgressEvent::NodeStarted { mode, node }
+                if matches!(mode, ProgressMode::DryRun | ProgressMode::Execute) =>
+            {
+                self.print_started(mode, node);
+            }
+            ProgressEvent::NodeFinished {
+                mode,
+                node,
+                outcome,
+            } if matches!(mode, ProgressMode::DryRun | ProgressMode::Execute) => {
+                self.print_finished(mode, node, outcome);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn mode_label(mode: ProgressMode) -> &'static str {
+    match mode {
+        ProgressMode::Describe => "describe",
+        ProgressMode::DryRun => "dry-run",
+        ProgressMode::Execute => "execute",
+    }
+}
+
+fn progress_status<E>(outcome: ProgressOutcome<'_, E>) -> &'static str {
+    match outcome {
+        ProgressOutcome::Described { .. } => "described",
+        ProgressOutcome::Executed => "ok",
+        ProgressOutcome::Skipped { .. } => "skipped",
+        ProgressOutcome::Denied { .. } => "denied",
+        ProgressOutcome::Blocked { .. } => "blocked",
+        ProgressOutcome::UnavailableDependencies { .. } => "unavailable dependencies",
+        ProgressOutcome::Failed { .. } => "failed",
+        ProgressOutcome::Internal { .. } => "internal error",
+    }
 }

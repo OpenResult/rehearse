@@ -4,6 +4,8 @@ use std::fmt;
 
 /// Error returned by execute mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum ExecuteError<E> {
     /// An operation body returned an error.
     Operation {
@@ -47,6 +49,7 @@ where
 
 /// Error returned by [`DryRunReport::require_no_failures`](crate::DryRunReport::require_no_failures).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DryRunFailure {
     failure_count: usize,
 }

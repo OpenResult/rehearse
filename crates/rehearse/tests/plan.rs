@@ -1,7 +1,7 @@
 mod common;
 
-use common::{op0, op1, op2, panic1, TestContext, TestError};
-use rehearse::{Impact, Input, NodeOutcome, PlanBuilder};
+use common::{metadata, op0, op1, op2, panic1, TestContext, TestError};
+use rehearse::{Impact, Input, NodeOutcome, Operation, PlanBuilder};
 
 #[tokio::test]
 async fn building_a_plan_invokes_no_operation_bodies() {
@@ -18,6 +18,35 @@ async fn building_a_plan_invokes_no_operation_bodies() {
 
     let output = plan.execute(&context).await.expect("execute succeeds");
     assert_eq!(output, 2);
+    assert_eq!(context.calls(), vec!["first", "second"]);
+}
+
+#[tokio::test]
+async fn sync_operation_runs_through_the_async_runner() {
+    let context = TestContext::default();
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("sync");
+
+    let first = builder.add(Operation::sync(
+        metadata("first", Impact::Pure),
+        (),
+        |context: &TestContext, ()| {
+            context.record("first");
+            Ok(20_u32)
+        },
+    ));
+    let second = builder.add(Operation::sync(
+        metadata("second", Impact::Pure),
+        Input::value(first),
+        |context: &TestContext, value| {
+            context.record("second");
+            Ok(value + 22)
+        },
+    ));
+    let plan = builder.finish(second);
+
+    let output = plan.execute(&context).await.expect("execute succeeds");
+
+    assert_eq!(output, 42);
     assert_eq!(context.calls(), vec!["first", "second"]);
 }
 
@@ -55,6 +84,31 @@ fn value_points_to_the_correct_producer() {
 
     let second_node = plan.nodes().nth(1).expect("second node");
     assert_eq!(second_node.dependencies(), &[first.node()]);
+}
+
+#[test]
+fn mermaid_output_uses_static_dependencies() {
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("graph");
+
+    let read = builder.add(op0("read \"current\"", Impact::Read, 1_u32));
+    let write = builder.add(op1(
+        "apply\\changes",
+        Impact::Write,
+        Input::value(read),
+        |value| value + 1,
+    ));
+    let plan = builder.finish(write);
+
+    assert_eq!(
+        plan.to_mermaid(),
+        "\
+flowchart TD
+  %% plan: graph
+  n0[\"1. read \\\"current\\\"\\nread\"]
+  n1[\"2. apply\\\\changes\\nwrite\"]
+  n0 --> n1
+"
+    );
 }
 
 #[tokio::test]

@@ -265,3 +265,17 @@ deploy
 "
     );
 }
+
+#[cfg(feature = "serde")]
+#[test]
+fn descriptions_serialize_to_json() {
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("json-description");
+
+    let read = builder.add(op0("read", Impact::Read, 1_u32));
+    let plan = builder.finish(read);
+
+    let json = serde_json::to_string(&plan.describe()).expect("description serializes");
+
+    assert!(json.contains("\"plan_name\":\"json-description\""));
+    assert!(json.contains("\"dry_run_action\":\"run\""));
+}

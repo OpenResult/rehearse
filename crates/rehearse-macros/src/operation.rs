@@ -127,10 +127,10 @@ impl OperationSpec {
             }
         }
 
-        if params.len() > 3 {
+        if params.len() > 8 {
             return Err(Error::new(
                 Span::call_site(),
-                "`#[operation]` currently supports at most three non-context parameters",
+                "`#[operation]` currently supports at most eight non-context parameters",
             ));
         }
 
@@ -407,18 +407,10 @@ fn operation_inputs(params: &[OperationParam]) -> TokenStream {
             let ident = &one.ident;
             quote!(#ident)
         }
-        [first, second] => {
-            let first = &first.ident;
-            let second = &second.ident;
-            quote!((#first, #second))
+        many => {
+            let idents = many.iter().map(|param| &param.ident);
+            quote!((#(#idents),*))
         }
-        [first, second, third] => {
-            let first = &first.ident;
-            let second = &second.ident;
-            let third = &third.ident;
-            quote!((#first, #second, #third))
-        }
-        _ => unreachable!("parameter count validated earlier"),
     }
 }
 
@@ -430,22 +422,10 @@ fn resolved_pattern(params: &[OperationParam]) -> TokenStream {
             let ty = &one.ty;
             quote!(#pat: #ty)
         }
-        [first, second] => {
-            let first_pat = &first.pat;
-            let second_pat = &second.pat;
-            let first_ty = &first.ty;
-            let second_ty = &second.ty;
-            quote!((#first_pat, #second_pat): (#first_ty, #second_ty))
+        many => {
+            let pats = many.iter().map(|param| &param.pat);
+            let tys = many.iter().map(|param| &param.ty);
+            quote!((#(#pats),*): (#(#tys),*))
         }
-        [first, second, third] => {
-            let first_pat = &first.pat;
-            let second_pat = &second.pat;
-            let third_pat = &third.pat;
-            let first_ty = &first.ty;
-            let second_ty = &second.ty;
-            let third_ty = &third.ty;
-            quote!((#first_pat, #second_pat, #third_pat): (#first_ty, #second_ty, #third_ty))
-        }
-        _ => unreachable!("parameter count validated earlier"),
     }
 }

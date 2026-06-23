@@ -9,6 +9,7 @@ use std::fmt;
 /// A description is copied from plan metadata and policy decisions. It never
 /// touches context, value stores, or operation bodies.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlanDescription {
     plan_name: String,
     rows: Vec<PlanDescriptionRow>,
@@ -51,12 +52,15 @@ impl fmt::Display for PlanDescription {
             writeln!(f)?;
         }
 
+        let name_width = self.name_width();
+        let impact_width = self.impact_width();
+
         for row in &self.rows {
             let impact = row.impact.to_string();
             let dry_run_action = row.dry_run_action.to_string();
             writeln!(
                 f,
-                "{:>3}  {:<20} {:<8} {}",
+                "{:>3}  {:<name_width$} {:<impact_width$} {}",
                 row.position, row.name, impact, dry_run_action
             )?;
         }
@@ -65,8 +69,29 @@ impl fmt::Display for PlanDescription {
     }
 }
 
+impl PlanDescription {
+    fn name_width(&self) -> usize {
+        self.rows
+            .iter()
+            .map(|row| row.name.len())
+            .max()
+            .unwrap_or(0)
+            .max(20)
+    }
+
+    fn impact_width(&self) -> usize {
+        self.rows
+            .iter()
+            .map(|row| row.impact.to_string().len())
+            .max()
+            .unwrap_or(0)
+            .max(8)
+    }
+}
+
 /// Static description row for one plan node.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlanDescriptionRow {
     node: NodeId,
     position: usize,
@@ -191,6 +216,7 @@ where
 /// Execution descriptions contain only static metadata. They never touch
 /// context, value stores, or operation bodies.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlanExecutionDescription {
     plan_name: String,
     rows: Vec<PlanExecutionDescriptionRow>,
@@ -236,17 +262,35 @@ impl fmt::Display for PlanExecutionDescription {
             writeln!(f)?;
         }
 
+        let name_width = self.name_width();
+
         for row in &self.rows {
             let impact = row.impact.to_string();
-            writeln!(f, "{:>3}  {:<20} {}", row.position, row.name, impact)?;
+            writeln!(
+                f,
+                "{:>3}  {:<name_width$} {}",
+                row.position, row.name, impact
+            )?;
         }
 
         Ok(())
     }
 }
 
+impl PlanExecutionDescription {
+    fn name_width(&self) -> usize {
+        self.rows
+            .iter()
+            .map(|row| row.name.len())
+            .max()
+            .unwrap_or(0)
+            .max(20)
+    }
+}
+
 /// Static execute-mode description row for one plan node.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlanExecutionDescriptionRow {
     node: NodeId,
     position: usize,

@@ -62,6 +62,42 @@ where
         })
     }
 
+    /// Renders a Mermaid flowchart from static plan metadata.
+    ///
+    /// Plan order is shown in node labels. Edges are derived only from explicit
+    /// value dependencies.
+    pub fn to_mermaid(&self) -> String {
+        let mut output = String::new();
+        output.push_str("flowchart TD\n");
+        output.push_str(&format!(
+            "  %% plan: {}\n",
+            escape_mermaid_comment(&self.name)
+        ));
+
+        for (index, node) in self.nodes.iter().enumerate() {
+            let metadata = node.metadata();
+            output.push_str(&format!(
+                "  n{}[\"{}. {}\\n{}\"]\n",
+                node.id().index(),
+                index + 1,
+                escape_mermaid_label(metadata.name()),
+                metadata.impact()
+            ));
+        }
+
+        for node in &self.nodes {
+            for dependency in node.dependencies() {
+                output.push_str(&format!(
+                    "  n{} --> n{}\n",
+                    dependency.index(),
+                    node.id().index()
+                ));
+            }
+        }
+
+        output
+    }
+
     /// Describes the plan using [`SafeDryRun`].
     pub fn describe(&self) -> PlanDescription {
         self.describe_with_policy(&SafeDryRun)
@@ -164,6 +200,14 @@ where
     {
         runner::dry_run::dry_run_with_listener(self, context, policy, listener).await
     }
+}
+
+fn escape_mermaid_label(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn escape_mermaid_comment(value: &str) -> String {
+    value.replace('\n', " ")
 }
 
 /// Static metadata view for one plan node.

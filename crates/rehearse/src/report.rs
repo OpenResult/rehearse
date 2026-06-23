@@ -3,6 +3,8 @@ use std::fmt;
 
 /// Outcome recorded for one dry-run node.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum NodeOutcome<E> {
     /// The node body ran successfully and produced a real value.
     Executed,
@@ -59,6 +61,7 @@ impl<E> NodeOutcome<E> {
 
 /// Report row for one dry-run node.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeReport<E> {
     node: NodeId,
     name: String,
@@ -99,6 +102,8 @@ impl<E> NodeReport<E> {
 
 /// Aggregate dry-run status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum DryRunStatus {
     /// Every node executed successfully.
     Complete,
@@ -110,6 +115,7 @@ pub enum DryRunStatus {
 
 /// Structured report returned by dry-run mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DryRunReport<E> {
     plan_name: String,
     nodes: Vec<NodeReport<E>>,
@@ -224,6 +230,24 @@ impl<E> DryRunReport<E> {
             Err(DryRunFailure::new(failures))
         }
     }
+
+    /// Returns an error unless every node executed successfully.
+    ///
+    /// This is stricter than [`require_no_failures`](Self::require_no_failures):
+    /// skipped, denied, and blocked nodes are rejected too.
+    pub fn require_complete(&self) -> Result<(), DryRunIncomplete> {
+        match self.status() {
+            DryRunStatus::Complete => Ok(()),
+            status => Err(DryRunIncomplete::new(
+                status,
+                self.executed_count(),
+                self.skipped_count(),
+                self.denied_count(),
+                self.blocked_count(),
+                self.failure_count(),
+            )),
+        }
+    }
 }
 
 impl<E: fmt::Display> fmt::Display for DryRunReport<E> {
@@ -242,7 +266,7 @@ impl<E: fmt::Display> fmt::Display for DryRunReport<E> {
                 NodeOutcome::Blocked {
                     missing_dependencies,
                 } => {
-                    let missing = format_node_list(missing_dependencies);
+                    let missing = format_node_list(missing_dependencies, &self.nodes);
                     writeln!(f, "[block] {} blocked: missing {missing}", node.name())?;
                 }
                 NodeOutcome::Failed { error } => {
@@ -275,10 +299,95 @@ impl<E: fmt::Display> fmt::Display for DryRunReport<E> {
     }
 }
 
-fn format_node_list(nodes: &[NodeId]) -> String {
+/// Error returned by [`DryRunReport::require_complete`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct DryRunIncomplete {
+    status: DryRunStatus,
+    executed_count: usize,
+    skipped_count: usize,
+    denied_count: usize,
+    blocked_count: usize,
+    failure_count: usize,
+}
+
+impl DryRunIncomplete {
+    pub(crate) fn new(
+        status: DryRunStatus,
+        executed_count: usize,
+        skipped_count: usize,
+        denied_count: usize,
+        blocked_count: usize,
+        failure_count: usize,
+    ) -> Self {
+        Self {
+            status,
+            executed_count,
+            skipped_count,
+            denied_count,
+            blocked_count,
+            failure_count,
+        }
+    }
+
+    /// Aggregate status that caused the report to be rejected.
+    pub fn status(&self) -> DryRunStatus {
+        self.status
+    }
+
+    /// Counts successfully executed nodes.
+    pub fn executed_count(&self) -> usize {
+        self.executed_count
+    }
+
+    /// Counts policy-skipped nodes.
+    pub fn skipped_count(&self) -> usize {
+        self.skipped_count
+    }
+
+    /// Counts policy-denied nodes.
+    pub fn denied_count(&self) -> usize {
+        self.denied_count
+    }
+
+    /// Counts dependency-blocked nodes.
+    pub fn blocked_count(&self) -> usize {
+        self.blocked_count
+    }
+
+    /// Counts failed operation nodes and internal invariant errors.
+    pub fn failure_count(&self) -> usize {
+        self.failure_count
+    }
+}
+
+impl fmt::Display for DryRunIncomplete {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "dry-run was not complete: {} executed, {} skipped, {} denied, {} blocked, {} failed",
+            self.executed_count,
+            self.skipped_count,
+            self.denied_count,
+            self.blocked_count,
+            self.failure_count
+        )
+    }
+}
+
+impl std::error::Error for DryRunIncomplete {}
+
+fn format_node_list<E>(nodes: &[NodeId], reports: &[NodeReport<E>]) -> String {
     nodes
         .iter()
-        .map(ToString::to_string)
+        .map(|node| format_node_reference(*node, reports))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn format_node_reference<E>(node: NodeId, reports: &[NodeReport<E>]) -> String {
+    match reports.iter().find(|report| report.node() == node) {
+        Some(report) => format!("{node} ({})", report.name()),
+        None => node.to_string(),
+    }
 }

@@ -119,6 +119,21 @@ async fn contextless_read(value: u32) -> Result<u32, MacroError> {
     Ok(value + 1)
 }
 
+#[operation(impact = pure)]
+#[allow(clippy::too_many_arguments)]
+async fn sum_eight(
+    a: u32,
+    b: u32,
+    c: u32,
+    d: u32,
+    e: u32,
+    f: u32,
+    g: u32,
+    h: u32,
+) -> Result<u32, MacroError> {
+    Ok(a + b + c + d + e + f + g + h)
+}
+
 #[tokio::test]
 async fn contextless_operation_composes_into_contextful_plan() {
     let services = Services::default();
@@ -128,4 +143,15 @@ async fn contextless_operation_composes_into_contextful_plan() {
     let plan = builder.finish(output);
 
     assert_eq!(plan.execute(&services).await.unwrap(), 42);
+}
+
+#[tokio::test]
+async fn operation_macro_supports_eight_non_context_parameters() {
+    let services = Services::default();
+    let mut builder = PlanBuilder::<Services, MacroError>::new("eight");
+
+    let output = builder.add(sum_eight(1, 2, 3, 4, 5, 6, 7, 8));
+    let plan = builder.finish(output);
+
+    assert_eq!(plan.execute(&services).await.unwrap(), 36);
 }

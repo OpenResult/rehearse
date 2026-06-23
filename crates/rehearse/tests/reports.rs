@@ -1,7 +1,9 @@
 mod common;
 
-use common::{fail0, op0, TestContext, TestError};
-use rehearse::{DryRunStatus, Impact, NodeOutcome, PlanBuilder};
+use common::{fail0, op0, panic1, TestContext, TestError};
+use rehearse::{
+    DryRunStatus, Impact, Input, NodeOutcome, Operation, OperationMetadata, PlanBuilder,
+};
 
 #[tokio::test]
 async fn every_node_has_one_outcome_and_retains_metadata() {
@@ -49,6 +51,16 @@ async fn counters_predicates_and_status_are_correct_for_incomplete_report() {
     assert!(report.has_denied());
     assert_eq!(report.status(), DryRunStatus::Incomplete);
     assert!(report.require_no_failures().is_ok());
+
+    let incomplete = report
+        .require_complete()
+        .expect_err("skips and denials are incomplete");
+    assert_eq!(incomplete.status(), DryRunStatus::Incomplete);
+    assert_eq!(incomplete.executed_count(), 1);
+    assert_eq!(incomplete.skipped_count(), 1);
+    assert_eq!(incomplete.denied_count(), 1);
+    assert_eq!(incomplete.blocked_count(), 0);
+    assert_eq!(incomplete.failure_count(), 0);
 }
 
 #[tokio::test]
@@ -66,6 +78,13 @@ async fn require_no_failures_rejects_executed_operation_failures() {
 
     assert_eq!(report.status(), DryRunStatus::Failed);
     assert_eq!(error.failure_count(), 1);
+    assert_eq!(
+        report
+            .require_complete()
+            .expect_err("failures are incomplete")
+            .status(),
+        DryRunStatus::Failed
+    );
 }
 
 #[tokio::test]
@@ -93,4 +112,47 @@ async fn display_output_is_deterministic() {
 
 Dry-run failed: 1 executed, 1 skipped, 0 denied, 0 blocked, 1 failed."
     );
+}
+
+#[tokio::test]
+async fn display_names_missing_dependencies_when_available() {
+    let context = TestContext::default();
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("blocked-display");
+
+    let write = builder.add(op0("write_config", Impact::Write, 1_u32));
+    let read = builder.add(panic1::<u32, ()>(
+        "verify_config",
+        Impact::Read,
+        Input::value(write),
+    ));
+    let plan = builder.finish(read);
+
+    let report = plan.dry_run(&context).await;
+
+    assert_eq!(
+        report.to_string(),
+        "\
+[skip] write_config skipped: write operation
+[block] verify_config blocked: missing #0 (write_config)
+
+Dry-run incomplete: 0 executed, 1 skipped, 0 denied, 1 blocked, 0 failed."
+    );
+}
+
+#[cfg(feature = "serde")]
+#[tokio::test]
+async fn reports_serialize_to_json() {
+    let mut builder = PlanBuilder::<(), String>::new("json-report");
+    let read = builder.add(Operation::sync(
+        OperationMetadata::new("read", Impact::Read),
+        (),
+        |_, ()| Ok(1_u32),
+    ));
+    let plan = builder.finish(read);
+
+    let report = plan.dry_run(&()).await;
+    let json = serde_json::to_string(&report).expect("report serializes");
+
+    assert!(json.contains("\"plan_name\":\"json-report\""));
+    assert!(json.contains("\"outcome\":\"executed\""));
 }

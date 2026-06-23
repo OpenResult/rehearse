@@ -28,7 +28,7 @@ Operation authors are responsible for choosing accurate metadata.
 `#[operation(impact = ...)]` is implemented for async free functions with:
 
 - zero or one `#[context] context: &C` parameter;
-- owned non-context parameters;
+- up to eight owned non-context parameters;
 - concrete `Result<Output, Error>` return types;
 - no generics, explicit lifetimes, borrowed non-context parameters, or methods.
 
@@ -154,12 +154,17 @@ Every dry-run node has exactly one outcome:
 `require_no_failures()` rejects failed operations only. It does not reject
 ordinary skipped writes or deletes.
 
+`require_complete()` rejects every non-complete report, including skipped,
+denied, blocked, and failed nodes.
+
 ## Static Describe
 
 `Plan::describe()` renders static plan metadata and default dry-run actions.
 `Plan::describe_with_policy(&policy)` renders actions for a custom policy.
 `Plan::describe_execution()` renders static execute-mode plan order without a
 dry-run action column.
+`Plan::to_mermaid()` renders a static dependency graph from node metadata and
+explicit `Value<T>` inputs.
 
 Describe does not use a context, create a value store, resolve dependencies, or
 invoke operation bodies.
@@ -178,11 +183,12 @@ semantics.
 ## Current Runtime Constraints
 
 - Operation inputs and outputs must be `Clone + Send + Sync + 'static`.
+- Operation input tuples are implemented up to eight inputs.
 - Operations in one plan share one context type `C`.
 - Operations in one plan share one error type `E`.
 - Async execution is runtime-independent in the library API through boxed
   futures. Tests and examples may use Tokio.
-- Sync operation functions are not currently supported; callers can wrap sync
-  work in an async block.
+- The operation macro supports async functions only. Manual operations can use
+  `Operation::sync` for synchronous work.
 - Generic pipeline functions, async pipeline constructors, and arbitrary Rust
   control-flow lowering are not currently supported.

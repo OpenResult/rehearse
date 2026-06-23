@@ -5,6 +5,8 @@ use std::fmt;
 /// Impact is explicit metadata supplied by operation authors. It is not inferred
 /// from Rust code and is interpreted by dry-run policies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Impact {
     /// Local computation with no externally meaningful effects.
     Pure,

@@ -15,8 +15,10 @@ restricted ergonomic syntax over the same `PlanBuilder` model.
 - Operation inputs and outputs require `Clone + Send + Sync + 'static` for the
   current implementation. This keeps the value store simple and avoids unsafe
   code.
-- Sync operation functions are not part of the current API. Users can wrap sync
-  work in an async block that returns the crate's `BoxFuture`.
+- Operation inputs are supported as `()`, one input, or tuples up to eight
+  inputs.
+- The macro frontend remains async-only. Manual operations can use
+  `Operation::sync` when the implementation does not need to await internally.
 - `IntoInput<T>` is public so generated operation constructors can accept
   literals, `Value<T>` handles, or explicit `Input<T>` values.
 
@@ -51,6 +53,9 @@ The `configure_vscode` example uses `#[pipeline]` to add missing rust-analyzer
 settings to `.vscode/settings.json`, with an optional `--dry-run` flag that
 rehearses the write without changing the file.
 
+Examples that need live node progress use the shared `ConsoleProgress` listener
+instead of carrying local listener implementations.
+
 ## Static describe
 
 - `Plan::describe()` returns an owned `PlanDescription` snapshot using
@@ -64,6 +69,10 @@ rehearses the write without changing the file.
 - Dry-run description rows copy node id, 1-based position, operation name,
   impact, and dry-run action. Execution description rows omit the action.
   Formatting does not touch context, stores, or operation bodies.
+- Display implementations size their columns from the current rows while
+  preserving a readable minimum width.
+- `Plan::to_mermaid()` renders static node metadata and explicit value
+  dependency edges for docs and CLI output.
 
 ## Progress listeners
 
@@ -88,6 +97,8 @@ rehearses the write without changing the file.
   context so they can compose into any compatible plan.
 - Sync operation functions, generic operation functions, and borrowed
   non-context operation parameters are not part of the current macro surface.
+- The macro accepts up to eight non-context parameters, matching the runtime
+  tuple input implementations.
 
 ## Pipeline macro
 
@@ -136,3 +147,10 @@ rehearses the write without changing the file.
 - External dependencies in the local index are explicitly marked as crates.io
   dependencies so Cargo does not try to resolve them from the local rehearse-only
   registry.
+
+## Optional serialization
+
+- The runtime crate exposes an optional `serde` feature.
+- With that feature enabled, public static descriptions, dry-run reports,
+  status/action enums, node ids, operation metadata, and execute/dry-run errors
+  derive serde serialization support for CLIs and automation.

@@ -37,6 +37,72 @@ For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
 Release notes live in [CHANGELOG.md](CHANGELOG.md). The maintainer publish
 runbook lives in [RELEASE.md](RELEASE.md).
 
+Enable structured serialization for descriptions, reports, and public status
+types with:
+
+```toml
+[dependencies]
+rehearse = { version = "0.1.1", features = ["serde"] }
+```
+
+## Five-Minute Quickstart
+
+Define operation bodies, compose them into a plan, then choose how to interpret
+the plan:
+
+```rust
+use rehearse::{operation, pipeline, Plan};
+
+#[derive(Clone)]
+struct Services;
+
+#[derive(Debug)]
+struct Error;
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("operation failed")
+    }
+}
+
+impl std::error::Error for Error {}
+
+#[operation(impact = read)]
+async fn read_version(#[context] _services: &Services) -> Result<String, Error> {
+    Ok("current".to_owned())
+}
+
+#[operation(impact = write)]
+async fn deploy(version: String) -> Result<String, Error> {
+    Ok(format!("deployed {version}"))
+}
+
+#[pipeline]
+fn release(version: String) -> Plan<Services, String, Error> {
+    let _current = rehearse::step!(read_version())?;
+    let result = rehearse::step!(deploy(version))?;
+    Ok(result)
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let services = Services;
+    let plan = release("v2".to_owned());
+
+    println!("{}", plan.describe());
+    let report = plan.dry_run(&services).await;
+    println!("{report}");
+
+    // Use execute only when you intend to run write/delete operations.
+    let _output = plan.execute(&services).await?;
+    Ok(())
+}
+```
+
+Calling `release(...)` builds the plan only. `read_version` and `deploy` run
+only through `dry_run` or `execute`, and the default dry-run policy skips the
+write.
+
 ## Local Publish Smoke Test
 
 The repository includes a no-server local publish check that simulates registry
@@ -104,6 +170,7 @@ async fn apply_changes(
 ```
 
 Operation inputs and outputs currently require `Clone + Send + Sync + 'static`.
+Operation constructors currently accept up to eight non-context inputs.
 All operations in a plan share one context type and one plan error type.
 
 ## Compose A Pipeline
@@ -225,7 +292,7 @@ Its dry-run output demonstrates the central read-after-write case:
 [ok] calculate_changes executed
 [skip] apply_changes skipped: write operation
 [ok] read_account_quota executed
-[block] verify_deployment blocked: missing #3
+[block] verify_deployment blocked: missing #3 (apply_changes)
 [skip] delete_old_releases skipped: delete operation
 
 Dry-run incomplete: 4 executed, 2 skipped, 0 denied, 1 blocked, 0 failed.
@@ -234,6 +301,10 @@ Dry-run incomplete: 4 executed, 2 skipped, 0 denied, 1 blocked, 0 failed.
 `read_account_quota` runs even though it appears after the skipped write because
 it has no value dependency on that write. `verify_deployment` is blocked because
 it needs the unavailable `Deployment` output from `apply_changes`.
+
+Use `report.require_no_failures()?` when skipped writes are acceptable but
+executed operation failures are not. Use `report.require_complete()?` when dry-run
+should be treated as successful only if every node executed.
 
 ## Execute
 
@@ -276,6 +347,26 @@ They observe node order, impact, selected dry-run actions, node outcomes, and
 plan completion. They do not change policy decisions, dependency checks, value
 storage, or operation execution.
 
+For simple CLIs, `ConsoleProgress` provides a ready-to-use stdout listener:
+
+```rust
+use rehearse::ConsoleProgress;
+
+let mut progress = ConsoleProgress::new();
+let report = plan.dry_run_with_listener(&services, &mut progress).await;
+```
+
+## Graph Output
+
+Use `to_mermaid()` when a CLI, README, or issue needs a visual dependency graph:
+
+```rust
+println!("{}", plan.to_mermaid());
+```
+
+The graph is static. It shows plan nodes and explicit `Value<T>` dependencies;
+it does not inspect operation bodies.
+
 ## Dry-run Contract
 
 Dry-run may authenticate, observe external state, perform local computation, and
@@ -300,11 +391,24 @@ let deployment = builder.add(apply_changes(Input::value(session)));
 let plan = builder.finish(deployment);
 ```
 
+Synchronous work can use `Operation::sync` without manually boxing a future:
+
+```rust
+use rehearse::{Impact, Operation, OperationMetadata};
+
+let read = Operation::sync(
+    OperationMetadata::new("read_config", Impact::Read),
+    (),
+    |_services: &Services, ()| Ok::<_, DeployError>("config".to_owned()),
+);
+```
+
 ## Limitations
 
 - `#[operation]` currently supports async free functions with owned
   non-context parameters, zero or one `#[context] &C` parameter, concrete
-  `Result<Output, Error>` returns, and no generics.
+  `Result<Output, Error>` returns, up to eight non-context parameters, and no
+  generics.
 - `#[pipeline]` currently supports straight-line plan constructors ending in
   `Ok(value)`, with step-produced values usable only in later `step!(...)`
   calls or the final output.
@@ -314,10 +418,13 @@ let plan = builder.finish(deployment);
 - No automatic mutation detection.
 - Operation inputs and outputs must be owned cloneable values.
 - Dry-run and execute currently use the same context type.
+- The operation macro is async-only; use the manual API's `Operation::sync` for
+  synchronous work.
 
 ## Status
 
 The current crate includes ordered plans, execute, dry-run, reports, static
-describe output, `#[operation]`, `#[pipeline]`, `step!`, compiled examples, API
-docs, Apache-2.0 packaging metadata, local publish smoke testing, and a guarded
-crates.io publish workflow example.
+describe output, Mermaid graph output, `#[operation]`, `#[pipeline]`, `step!`,
+compiled examples, API docs, optional serde support, Apache-2.0 packaging
+metadata, local publish smoke testing, and a guarded crates.io publish workflow
+example.

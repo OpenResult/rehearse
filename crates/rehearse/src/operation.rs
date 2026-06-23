@@ -9,6 +9,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Static metadata attached to an operation node.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OperationMetadata {
     name: String,
     impact: Impact,
@@ -57,7 +58,7 @@ where
 {
     /// Creates a new operation descriptor.
     ///
-    /// `inputs` can be `()`, one [`Input`](crate::Input), or tuples up to three
+    /// `inputs` can be `()`, one [`Input`](crate::Input), or tuples up to eight
     /// inputs. Value inputs are resolved from the per-run store before the
     /// executor is invoked.
     pub fn new<I, F>(metadata: OperationMetadata, inputs: I, executor: F) -> Self
@@ -85,6 +86,23 @@ where
             dependencies,
             runner,
         }
+    }
+
+    /// Creates a new operation descriptor from synchronous work.
+    ///
+    /// This is a convenience wrapper over [`Operation::new`] for operations
+    /// whose implementation does not need to await internally. The operation is
+    /// still executed through the same async plan runners.
+    pub fn sync<I, F>(metadata: OperationMetadata, inputs: I, executor: F) -> Self
+    where
+        I: OperationInputs,
+        F: Fn(&C, I::Resolved) -> Result<T, E> + Send + Sync + 'static,
+    {
+        let executor = Arc::new(executor);
+        Self::new(metadata, inputs, move |context: &C, resolved| {
+            let executor = Arc::clone(&executor);
+            Box::pin(async move { executor(context, resolved) })
+        })
     }
 
     /// Returns this operation's static metadata.

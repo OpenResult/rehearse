@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 /// Stable identifier for a node in one plan.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeId(usize);
 
 impl NodeId {
@@ -108,7 +109,7 @@ impl<T> IntoInput<T> for T {
 
 /// Internal input tuple abstraction used by [`Operation`](crate::Operation).
 ///
-/// Implemented for `()`, one [`Input`], and tuples of up to three inputs.
+/// Implemented for `()`, one [`Input`], and tuples of up to eight inputs.
 pub trait OperationInputs: Send + Sync + 'static {
     /// Resolved value shape passed to an operation executor.
     type Resolved: Send + 'static;
@@ -161,44 +162,37 @@ where
     }
 }
 
-impl<A, B> OperationInputs for (Input<A>, Input<B>)
-where
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-{
-    type Resolved = (A, B);
+macro_rules! impl_operation_inputs_tuple {
+    ($($name:ident $index:tt),+ $(,)?) => {
+        impl<$($name),+> OperationInputs for ($(Input<$name>,)+)
+        where
+            $($name: Clone + Send + Sync + 'static,)+
+        {
+            type Resolved = ($($name,)+);
 
-    fn dependencies(&self) -> Vec<NodeId> {
-        let mut dependencies = self.0.dependencies();
-        dependencies.extend(self.1.dependencies());
-        dependencies
-    }
+            fn dependencies(&self) -> Vec<NodeId> {
+                let mut dependencies = Vec::new();
+                $(
+                    dependencies.extend(self.$index.dependencies());
+                )+
+                dependencies
+            }
 
-    fn resolve(&self, store: &ValueStore) -> Result<Self::Resolved, ResolveInputError> {
-        Ok((self.0.resolve(store)?, self.1.resolve(store)?))
-    }
+            fn resolve(&self, store: &ValueStore) -> Result<Self::Resolved, ResolveInputError> {
+                Ok((
+                    $(
+                        self.$index.resolve(store)?,
+                    )+
+                ))
+            }
+        }
+    };
 }
 
-impl<A, B, C> OperationInputs for (Input<A>, Input<B>, Input<C>)
-where
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
-{
-    type Resolved = (A, B, C);
-
-    fn dependencies(&self) -> Vec<NodeId> {
-        let mut dependencies = self.0.dependencies();
-        dependencies.extend(self.1.dependencies());
-        dependencies.extend(self.2.dependencies());
-        dependencies
-    }
-
-    fn resolve(&self, store: &ValueStore) -> Result<Self::Resolved, ResolveInputError> {
-        Ok((
-            self.0.resolve(store)?,
-            self.1.resolve(store)?,
-            self.2.resolve(store)?,
-        ))
-    }
-}
+impl_operation_inputs_tuple!(A 0, B 1);
+impl_operation_inputs_tuple!(A 0, B 1, C 2);
+impl_operation_inputs_tuple!(A 0, B 1, C 2, D 3);
+impl_operation_inputs_tuple!(A 0, B 1, C 2, D 3, E 4);
+impl_operation_inputs_tuple!(A 0, B 1, C 2, D 3, E 4, F 5);
+impl_operation_inputs_tuple!(A 0, B 1, C 2, D 3, E 4, F 5, G 6);
+impl_operation_inputs_tuple!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7);

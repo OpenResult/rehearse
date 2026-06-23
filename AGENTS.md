@@ -86,7 +86,7 @@ classification.
 - `PlanBuilder<C, E>` is the manual builder.
 - `Operation<C, T, E>` stores metadata, inputs, and a delayed executor.
 - `Value<T>` is a typed node handle and is `Copy` regardless of `T`.
-- Operation inputs support `()`, one `Input<T>`, and tuples up to three inputs.
+- Operation inputs support `()`, one `Input<T>`, and tuples up to eight inputs.
 - Inputs and outputs require `Clone + Send + Sync + 'static`.
 - All operations in one plan share one context type and one error type.
 - Operation metadata uses owned `String` names and declared `Impact`.
