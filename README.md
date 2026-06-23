@@ -140,6 +140,14 @@ cargo run -p rehearse --example configure_vscode -- --dry-run
 cargo run -p rehearse --example configure_vscode
 ```
 
+The `conditional_rollout` example uses seeded random conditions and progress
+listeners to rehearse or execute a simulated feature rollout:
+
+```bash
+cargo run -p rehearse --example conditional_rollout -- --seed 7
+cargo run -p rehearse --example conditional_rollout -- --seed 7 --execute
+```
+
 The `deploy` example is this repository's guarded crates.io publish workflow.
 By default it describes the publish plan and runs safe dry-run checks; real
 `cargo publish` uploads require `--execute`.
