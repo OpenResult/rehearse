@@ -164,6 +164,17 @@ dry-run action column.
 Describe does not use a context, create a value store, resolve dependencies, or
 invoke operation bodies.
 
+## Progress Listeners
+
+Progress listeners observe describe, dry-run, and execute traversals. Listener
+variants emit plan start, node-level, and plan finish events containing static
+node metadata and the decision or outcome that the runtime already selected.
+
+Listeners are not part of policy evaluation, dependency resolution, value
+storage, operation execution, or error conversion. A listener can display or
+record progress, but returning from a listener callback cannot alter runtime
+semantics.
+
 ## Current Runtime Constraints
 
 - Operation inputs and outputs must be `Clone + Send + Sync + 'static`.

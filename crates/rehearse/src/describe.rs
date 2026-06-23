@@ -1,4 +1,7 @@
-use crate::{DryRunAction, DryRunPolicy, Impact, NodeId};
+use crate::{
+    DryRunAction, DryRunPolicy, Impact, NodeId, NoopProgress, ProgressEvent, ProgressListener,
+    ProgressMode, ProgressNode, ProgressOutcome, ProgressPlanOutcome,
+};
 use std::fmt;
 
 /// Owned static description of a plan.
@@ -123,20 +126,62 @@ pub(crate) fn describe_plan<C, E, P>(
 where
     P: DryRunPolicy,
 {
+    let mut progress = NoopProgress;
+    describe_plan_with_listener(name, nodes, policy, &mut progress)
+}
+
+pub(crate) fn describe_plan_with_listener<C, E, P, L>(
+    name: &str,
+    nodes: &[Box<dyn crate::plan::node::ErasedNode<C, E>>],
+    policy: &P,
+    listener: &mut L,
+) -> PlanDescription
+where
+    P: DryRunPolicy,
+    L: ProgressListener<E> + ?Sized,
+{
+    listener.on_event(ProgressEvent::PlanStarted {
+        mode: ProgressMode::Describe,
+        plan_name: name,
+        total_nodes: nodes.len(),
+    });
+
     let rows = nodes
         .iter()
         .enumerate()
         .map(|(index, node)| {
             let metadata = node.metadata();
+            let action = policy.action(metadata);
+            let progress_node = ProgressNode::new(
+                node.id(),
+                index + 1,
+                nodes.len(),
+                metadata.name(),
+                metadata.impact(),
+            );
+            listener.on_event(ProgressEvent::NodeDescribed {
+                mode: ProgressMode::Describe,
+                node: progress_node,
+                outcome: ProgressOutcome::Described {
+                    dry_run_action: Some(action),
+                },
+            });
             PlanDescriptionRow::new(
                 node.id(),
                 index + 1,
                 metadata.name(),
                 metadata.impact(),
-                policy.action(metadata),
+                action,
             )
         })
         .collect();
+
+    listener.on_event(ProgressEvent::PlanFinished {
+        mode: ProgressMode::Describe,
+        plan_name: name,
+        total_nodes: nodes.len(),
+        outcome: ProgressPlanOutcome::Complete,
+    });
 
     PlanDescription::new(name, rows)
 }
@@ -249,11 +294,43 @@ pub(crate) fn describe_execution_plan<C, E>(
     name: &str,
     nodes: &[Box<dyn crate::plan::node::ErasedNode<C, E>>],
 ) -> PlanExecutionDescription {
+    let mut progress = NoopProgress;
+    describe_execution_plan_with_listener(name, nodes, &mut progress)
+}
+
+pub(crate) fn describe_execution_plan_with_listener<C, E, L>(
+    name: &str,
+    nodes: &[Box<dyn crate::plan::node::ErasedNode<C, E>>],
+    listener: &mut L,
+) -> PlanExecutionDescription
+where
+    L: ProgressListener<E> + ?Sized,
+{
+    listener.on_event(ProgressEvent::PlanStarted {
+        mode: ProgressMode::Describe,
+        plan_name: name,
+        total_nodes: nodes.len(),
+    });
+
     let rows = nodes
         .iter()
         .enumerate()
         .map(|(index, node)| {
             let metadata = node.metadata();
+            let progress_node = ProgressNode::new(
+                node.id(),
+                index + 1,
+                nodes.len(),
+                metadata.name(),
+                metadata.impact(),
+            );
+            listener.on_event(ProgressEvent::NodeDescribed {
+                mode: ProgressMode::Describe,
+                node: progress_node,
+                outcome: ProgressOutcome::Described {
+                    dry_run_action: None,
+                },
+            });
             PlanExecutionDescriptionRow::new(
                 node.id(),
                 index + 1,
@@ -262,6 +339,13 @@ pub(crate) fn describe_execution_plan<C, E>(
             )
         })
         .collect();
+
+    listener.on_event(ProgressEvent::PlanFinished {
+        mode: ProgressMode::Describe,
+        plan_name: name,
+        total_nodes: nodes.len(),
+        outcome: ProgressPlanOutcome::Complete,
+    });
 
     PlanExecutionDescription::new(name, rows)
 }

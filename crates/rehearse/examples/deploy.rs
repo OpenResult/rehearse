@@ -1,9 +1,13 @@
-use rehearse::{operation, pipeline, Plan};
+use rehearse::{
+    operation, pipeline, Plan, ProgressEvent, ProgressListener, ProgressMode, ProgressNode,
+    ProgressOutcome,
+};
 use serde_json::Value as JsonValue;
 use std::env;
 use std::error::Error;
 use std::fmt;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
@@ -400,14 +404,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     if args.execute {
         println!("{}", plan.describe_execution());
-        let outcome = plan.execute(&workspace).await?;
+        let mut progress = ConsoleProgress::new();
+        let outcome = plan
+            .execute_with_listener(&workspace, &mut progress)
+            .await?;
         println!(
             "published {RUNTIME_CRATE} {} and {MACROS_CRATE} {}",
             outcome.version, outcome.version
         );
     } else {
         println!("{}", plan.describe());
-        let report = plan.dry_run(&workspace).await;
+        let mut progress = ConsoleProgress::new();
+        let report = plan.dry_run_with_listener(&workspace, &mut progress).await;
+        println!();
         println!("{report}");
         report.require_no_failures()?;
         println!("safe dry-run complete; pass --execute to publish for real");
@@ -463,6 +472,103 @@ fn print_usage() {
     println!();
     println!("Default mode describes the publish plan and runs safe dry-run checks.");
     println!("Use --execute only when {TOKEN_VAR} is present and you intend to publish.");
+}
+
+struct ConsoleProgress {
+    github_actions: bool,
+}
+
+impl ConsoleProgress {
+    fn new() -> Self {
+        Self {
+            github_actions: env::var_os("GITHUB_ACTIONS").is_some(),
+        }
+    }
+
+    fn print_started(&mut self, mode: ProgressMode, node: ProgressNode<'_>) {
+        if self.github_actions {
+            println!(
+                "::notice title=rehearse::{} [{}/{}] {} ({}) started",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name(),
+                node.impact()
+            );
+        } else {
+            print!(
+                "[{} {}/{}] {:<42} ({}) ... ",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name(),
+                node.impact()
+            );
+            drop(io::stdout().flush());
+        }
+    }
+
+    fn print_finished(
+        &mut self,
+        mode: ProgressMode,
+        node: ProgressNode<'_>,
+        outcome: ProgressOutcome<'_, PublishError>,
+    ) {
+        let status = progress_status(outcome);
+
+        if self.github_actions {
+            println!(
+                "::notice title=rehearse::{} [{}/{}] {} {status}",
+                mode_label(mode),
+                node.position(),
+                node.total(),
+                node.name()
+            );
+        } else {
+            println!("{status}");
+        }
+    }
+}
+
+impl ProgressListener<PublishError> for ConsoleProgress {
+    fn on_event(&mut self, event: ProgressEvent<'_, PublishError>) {
+        match event {
+            ProgressEvent::NodeStarted { mode, node }
+                if matches!(mode, ProgressMode::DryRun | ProgressMode::Execute) =>
+            {
+                self.print_started(mode, node);
+            }
+            ProgressEvent::NodeFinished {
+                mode,
+                node,
+                outcome,
+            } if matches!(mode, ProgressMode::DryRun | ProgressMode::Execute) => {
+                self.print_finished(mode, node, outcome);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn mode_label(mode: ProgressMode) -> &'static str {
+    match mode {
+        ProgressMode::Describe => "describe",
+        ProgressMode::DryRun => "dry-run",
+        ProgressMode::Execute => "execute",
+    }
+}
+
+fn progress_status(outcome: ProgressOutcome<'_, PublishError>) -> &'static str {
+    match outcome {
+        ProgressOutcome::Described { .. } => "described",
+        ProgressOutcome::Executed => "ok",
+        ProgressOutcome::Skipped { .. } => "skipped",
+        ProgressOutcome::Denied { .. } => "denied",
+        ProgressOutcome::Blocked { .. } => "blocked",
+        ProgressOutcome::UnavailableDependencies { .. } => "unavailable dependencies",
+        ProgressOutcome::Failed { .. } => "failed",
+        ProgressOutcome::Internal { .. } => "internal error",
+    }
 }
 
 fn parse_env_value(raw: &str, line: usize) -> Result<String, PublishError> {

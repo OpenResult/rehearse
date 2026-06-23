@@ -1,7 +1,72 @@
 mod common;
 
 use common::{fail0, op0, op1, op2, panic0, panic1, TestContext, TestError};
-use rehearse::{DryRunStatus, Impact, Input, NodeOutcome, PlanBuilder};
+use rehearse::{
+    DryRunStatus, Impact, Input, NodeOutcome, PlanBuilder, ProgressEvent, ProgressListener,
+    ProgressOutcome,
+};
+
+#[derive(Default)]
+struct RecordingProgress {
+    events: Vec<String>,
+}
+
+impl ProgressListener<TestError> for RecordingProgress {
+    fn on_event(&mut self, event: ProgressEvent<'_, TestError>) {
+        match event {
+            ProgressEvent::PlanStarted {
+                mode,
+                plan_name,
+                total_nodes,
+            } => self
+                .events
+                .push(format!("start {mode:?} {plan_name} {total_nodes}")),
+            ProgressEvent::NodeStarted { mode, node } => self.events.push(format!(
+                "start-node {mode:?} {} {}",
+                node.position(),
+                node.name()
+            )),
+            ProgressEvent::NodeFinished {
+                mode,
+                node,
+                outcome,
+            } => self.events.push(format!(
+                "finish-node {mode:?} {} {} {}",
+                node.position(),
+                node.name(),
+                outcome_label(outcome)
+            )),
+            ProgressEvent::PlanFinished {
+                mode,
+                plan_name,
+                total_nodes,
+                outcome,
+            } => self.events.push(format!(
+                "finish {mode:?} {plan_name} {total_nodes} {outcome:?}"
+            )),
+            ProgressEvent::NodeDescribed { .. } => {
+                self.events.push("unexpected describe event".to_owned());
+            }
+        }
+    }
+}
+
+fn outcome_label(outcome: ProgressOutcome<'_, TestError>) -> String {
+    match outcome {
+        ProgressOutcome::Executed => "executed".to_owned(),
+        ProgressOutcome::Skipped { reason } => format!("skipped:{reason}"),
+        ProgressOutcome::Denied { reason } => format!("denied:{reason}"),
+        ProgressOutcome::Blocked {
+            missing_dependencies,
+        } => format!("blocked:{missing_dependencies:?}"),
+        ProgressOutcome::Failed { error } => format!("failed:{error}"),
+        ProgressOutcome::Internal { error } => format!("internal:{error}"),
+        ProgressOutcome::Described { .. } => "described".to_owned(),
+        ProgressOutcome::UnavailableDependencies {
+            missing_dependencies,
+        } => format!("unavailable:{missing_dependencies:?}"),
+    }
+}
 
 #[tokio::test]
 async fn safe_dry_run_runs_pure_session_and_read_operations() {
@@ -168,4 +233,42 @@ async fn blocked_node_reports_all_missing_value_dependencies() {
             missing_dependencies
         } if missing_dependencies == &[first.node(), second.node()]
     ));
+}
+
+#[tokio::test]
+async fn dry_run_with_listener_reports_all_node_outcomes_in_order() {
+    let context = TestContext::default();
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("progress");
+
+    let read = builder.add(op0("read", Impact::Read, 1_u32));
+    let write = builder.add(panic0::<u32>("write", Impact::Write));
+    builder.add(op1("blocked", Impact::Read, Input::value(write), |value| {
+        value
+    }));
+    builder.add(panic0::<()>("opaque", Impact::Opaque));
+    builder.add(fail0::<()>("failed", Impact::Read, "read failed"));
+    let plan = builder.finish(read);
+    let mut progress = RecordingProgress::default();
+
+    let report = plan.dry_run_with_listener(&context, &mut progress).await;
+
+    assert_eq!(report.status(), DryRunStatus::Failed);
+    assert_eq!(context.calls(), vec!["read", "failed"]);
+    assert_eq!(
+        progress.events,
+        vec![
+            "start DryRun progress 5".to_owned(),
+            "start-node DryRun 1 read".to_owned(),
+            "finish-node DryRun 1 read executed".to_owned(),
+            "start-node DryRun 2 write".to_owned(),
+            "finish-node DryRun 2 write skipped:write operation".to_owned(),
+            "start-node DryRun 3 blocked".to_owned(),
+            format!("finish-node DryRun 3 blocked blocked:{:?}", &[write.node()]),
+            "start-node DryRun 4 opaque".to_owned(),
+            "finish-node DryRun 4 opaque denied:opaque operation".to_owned(),
+            "start-node DryRun 5 failed".to_owned(),
+            "finish-node DryRun 5 failed failed:read failed".to_owned(),
+            "finish DryRun progress 5 Failed".to_owned(),
+        ]
+    );
 }

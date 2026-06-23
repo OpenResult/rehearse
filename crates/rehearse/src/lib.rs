@@ -16,6 +16,7 @@ mod error;
 mod impact;
 mod operation;
 mod policy;
+mod progress;
 mod report;
 
 #[doc(hidden)]
@@ -31,6 +32,10 @@ pub use impact::Impact;
 pub use operation::{BoxFuture, Operation, OperationMetadata};
 pub use plan::{Input, IntoInput, NodeId, OperationInputs, Plan, PlanBuilder, Value};
 pub use policy::{DryRunAction, DryRunPolicy, SafeDryRun};
+pub use progress::{
+    NoopProgress, ProgressEvent, ProgressListener, ProgressMode, ProgressNode, ProgressOutcome,
+    ProgressPlanOutcome,
+};
 pub use report::{DryRunReport, DryRunStatus, NodeOutcome, NodeReport};
 
 #[cfg(feature = "macros")]

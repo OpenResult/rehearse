@@ -9,7 +9,8 @@ pub use value::{Input, IntoInput, NodeId, OperationInputs, Value};
 
 use crate::runner;
 use crate::{
-    DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, PlanExecutionDescription, SafeDryRun,
+    DryRunPolicy, DryRunReport, ExecuteError, PlanDescription, PlanExecutionDescription,
+    ProgressListener, SafeDryRun,
 };
 use node::ErasedNode;
 use std::marker::PhantomData;
@@ -66,6 +67,14 @@ where
         self.describe_with_policy(&SafeDryRun)
     }
 
+    /// Describes the plan using [`SafeDryRun`] and reports progress events.
+    pub fn describe_with_listener<L>(&self, listener: &mut L) -> PlanDescription
+    where
+        L: ProgressListener<E> + ?Sized,
+    {
+        self.describe_with_policy_and_listener(&SafeDryRun, listener)
+    }
+
     /// Describes the plan using a caller-supplied dry-run policy.
     pub fn describe_with_policy<P>(&self, policy: &P) -> PlanDescription
     where
@@ -74,9 +83,31 @@ where
         crate::describe::describe_plan(&self.name, &self.nodes, policy)
     }
 
+    /// Describes the plan using a caller-supplied dry-run policy and reports
+    /// progress events.
+    pub fn describe_with_policy_and_listener<P, L>(
+        &self,
+        policy: &P,
+        listener: &mut L,
+    ) -> PlanDescription
+    where
+        P: DryRunPolicy,
+        L: ProgressListener<E> + ?Sized,
+    {
+        crate::describe::describe_plan_with_listener(&self.name, &self.nodes, policy, listener)
+    }
+
     /// Describes execute-mode plan order without dry-run policy actions.
     pub fn describe_execution(&self) -> PlanExecutionDescription {
         crate::describe::describe_execution_plan(&self.name, &self.nodes)
+    }
+
+    /// Describes execute-mode plan order and reports progress events.
+    pub fn describe_execution_with_listener<L>(&self, listener: &mut L) -> PlanExecutionDescription
+    where
+        L: ProgressListener<E> + ?Sized,
+    {
+        crate::describe::describe_execution_plan_with_listener(&self.name, &self.nodes, listener)
     }
 
     /// Executes every operation in plan order and stops at the first failure.
@@ -84,9 +115,31 @@ where
         runner::execute::execute(self, context).await
     }
 
+    /// Executes every operation in plan order, reports progress events, and
+    /// stops at the first failure.
+    pub async fn execute_with_listener<L>(
+        &self,
+        context: &C,
+        listener: &mut L,
+    ) -> Result<T, ExecuteError<E>>
+    where
+        L: ProgressListener<E> + ?Sized,
+    {
+        runner::execute::execute_with_listener(self, context, listener).await
+    }
+
     /// Runs the plan with [`SafeDryRun`].
     pub async fn dry_run(&self, context: &C) -> DryRunReport<E> {
         self.dry_run_with_policy(context, &SafeDryRun).await
+    }
+
+    /// Runs the plan with [`SafeDryRun`] and reports progress events.
+    pub async fn dry_run_with_listener<L>(&self, context: &C, listener: &mut L) -> DryRunReport<E>
+    where
+        L: ProgressListener<E> + ?Sized,
+    {
+        self.dry_run_with_policy_and_listener(context, &SafeDryRun, listener)
+            .await
     }
 
     /// Runs the plan with a caller-supplied dry-run policy.
@@ -95,6 +148,21 @@ where
         P: DryRunPolicy,
     {
         runner::dry_run::dry_run(self, context, policy).await
+    }
+
+    /// Runs the plan with a caller-supplied dry-run policy and reports progress
+    /// events.
+    pub async fn dry_run_with_policy_and_listener<P, L>(
+        &self,
+        context: &C,
+        policy: &P,
+        listener: &mut L,
+    ) -> DryRunReport<E>
+    where
+        P: DryRunPolicy,
+        L: ProgressListener<E> + ?Sized,
+    {
+        runner::dry_run::dry_run_with_listener(self, context, policy, listener).await
     }
 }
 

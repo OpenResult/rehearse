@@ -65,6 +65,17 @@ rehearses the write without changing the file.
   impact, and dry-run action. Execution description rows omit the action.
   Formatting does not touch context, stores, or operation bodies.
 
+## Progress listeners
+
+- `ProgressListener<E>` receives borrowed progress events for describe,
+  dry-run, and execute traversals.
+- Existing describe, dry-run, and execute methods use `NoopProgress` internally.
+  Listener variants expose the same behavior with observation hooks.
+- Progress outcomes borrow operation errors so listener support does not add
+  `Clone` or formatting requirements to the common error type `E`.
+- Progress events do not participate in dry-run policy decisions, dependency
+  checks, value storage, operation execution, or error conversion.
+
 ## Operation macro
 
 - `rehearse` re-exports `#[operation]` through the default `macros` feature.

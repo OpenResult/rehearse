@@ -1,7 +1,71 @@
 mod common;
 
 use common::{fail0, op0, op1, op2, panic0, TestContext, TestError};
-use rehearse::{ExecuteError, Impact, Input, PlanBuilder};
+use rehearse::{
+    ExecuteError, Impact, Input, PlanBuilder, ProgressEvent, ProgressListener, ProgressOutcome,
+};
+
+#[derive(Default)]
+struct RecordingProgress {
+    events: Vec<String>,
+}
+
+impl ProgressListener<TestError> for RecordingProgress {
+    fn on_event(&mut self, event: ProgressEvent<'_, TestError>) {
+        match event {
+            ProgressEvent::PlanStarted {
+                mode,
+                plan_name,
+                total_nodes,
+            } => self
+                .events
+                .push(format!("start {mode:?} {plan_name} {total_nodes}")),
+            ProgressEvent::NodeStarted { mode, node } => self.events.push(format!(
+                "start-node {mode:?} {} {}",
+                node.position(),
+                node.name()
+            )),
+            ProgressEvent::NodeFinished {
+                mode,
+                node,
+                outcome,
+            } => self.events.push(format!(
+                "finish-node {mode:?} {} {} {}",
+                node.position(),
+                node.name(),
+                outcome_label(outcome)
+            )),
+            ProgressEvent::PlanFinished {
+                mode,
+                plan_name,
+                total_nodes,
+                outcome,
+            } => self.events.push(format!(
+                "finish {mode:?} {plan_name} {total_nodes} {outcome:?}"
+            )),
+            ProgressEvent::NodeDescribed { .. } => {
+                self.events.push("unexpected describe event".to_owned());
+            }
+        }
+    }
+}
+
+fn outcome_label(outcome: ProgressOutcome<'_, TestError>) -> String {
+    match outcome {
+        ProgressOutcome::Executed => "executed".to_owned(),
+        ProgressOutcome::Failed { error } => format!("failed:{error}"),
+        ProgressOutcome::Internal { error } => format!("internal:{error}"),
+        ProgressOutcome::UnavailableDependencies {
+            missing_dependencies,
+        } => format!("unavailable:{missing_dependencies:?}"),
+        ProgressOutcome::Skipped { reason } => format!("skipped:{reason}"),
+        ProgressOutcome::Denied { reason } => format!("denied:{reason}"),
+        ProgressOutcome::Blocked {
+            missing_dependencies,
+        } => format!("blocked:{missing_dependencies:?}"),
+        ProgressOutcome::Described { .. } => "described".to_owned(),
+    }
+}
 
 #[tokio::test]
 async fn execute_runs_all_impacts_in_source_order() {
@@ -84,4 +148,73 @@ async fn execute_returns_the_final_output_when_all_nodes_succeed() {
     let output = plan.execute(&context).await.expect("execute succeeds");
 
     assert_eq!(output, "hello world");
+}
+
+#[tokio::test]
+async fn execute_with_listener_reports_successful_nodes_and_completion() {
+    let context = TestContext::default();
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("execute-progress");
+
+    let first = builder.add(op0("first", Impact::Pure, 1_u32));
+    let second = builder.add(op1("second", Impact::Pure, Input::value(first), |value| {
+        value + 1
+    }));
+    let plan = builder.finish(second);
+    let mut progress = RecordingProgress::default();
+
+    let output = plan
+        .execute_with_listener(&context, &mut progress)
+        .await
+        .expect("execute succeeds");
+
+    assert_eq!(output, 2);
+    assert_eq!(
+        progress.events,
+        vec![
+            "start Execute execute-progress 2".to_owned(),
+            "start-node Execute 1 first".to_owned(),
+            "finish-node Execute 1 first executed".to_owned(),
+            "start-node Execute 2 second".to_owned(),
+            "finish-node Execute 2 second executed".to_owned(),
+            "finish Execute execute-progress 2 Complete".to_owned(),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn execute_with_listener_reports_failure_before_returning() {
+    let context = TestContext::default();
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("execute-fail");
+
+    builder.add(op0("login", Impact::Session, ()));
+    let failing = builder.add(fail0::<u32>("read", Impact::Read, "read failed"));
+    let after_failure = builder.add(panic0::<u32>("write", Impact::Write));
+    let plan = builder.finish(after_failure);
+    let mut progress = RecordingProgress::default();
+
+    let error = plan
+        .execute_with_listener(&context, &mut progress)
+        .await
+        .expect_err("execute fails");
+
+    assert_eq!(context.calls(), vec!["login", "read"]);
+    assert_eq!(
+        error,
+        ExecuteError::Operation {
+            node: failing.node(),
+            name: "read".to_owned(),
+            source: TestError::Boom("read failed"),
+        }
+    );
+    assert_eq!(
+        progress.events,
+        vec![
+            "start Execute execute-fail 3".to_owned(),
+            "start-node Execute 1 login".to_owned(),
+            "finish-node Execute 1 login executed".to_owned(),
+            "start-node Execute 2 read".to_owned(),
+            "finish-node Execute 2 read failed:read failed".to_owned(),
+            "finish Execute execute-fail 3 Failed".to_owned(),
+        ]
+    );
 }

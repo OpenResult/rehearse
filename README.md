@@ -238,6 +238,36 @@ let deployment = plan.execute(&services).await?;
 
 Execute mode never applies dry-run policy.
 
+## Progress listeners
+
+Use listener variants when a CLI or automation runner wants live progress while
+preserving the same semantics:
+
+```rust
+use rehearse::{ProgressEvent, ProgressListener};
+
+struct Logger;
+
+impl<E> ProgressListener<E> for Logger {
+    fn on_event(&mut self, event: ProgressEvent<'_, E>) {
+        if let ProgressEvent::NodeStarted { node, .. } = event {
+            println!("starting {}", node.name());
+        }
+    }
+}
+
+let mut logger = Logger;
+let report = plan.dry_run_with_listener(&services, &mut logger).await;
+let deployment = plan.execute_with_listener(&services, &mut logger).await?;
+let description = plan.describe_with_listener(&mut logger);
+```
+
+Listeners also work with custom dry-run policies through
+`describe_with_policy_and_listener` and `dry_run_with_policy_and_listener`.
+They observe node order, impact, selected dry-run actions, node outcomes, and
+plan completion. They do not change policy decisions, dependency checks, value
+storage, or operation execution.
+
 ## Dry-run Contract
 
 Dry-run may authenticate, observe external state, perform local computation, and

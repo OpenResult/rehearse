@@ -1,7 +1,48 @@
 mod common;
 
 use common::{op0, panic0, TestContext, TestError};
-use rehearse::{DryRunAction, DryRunPolicy, Impact, OperationMetadata, PlanBuilder};
+use rehearse::{
+    DryRunAction, DryRunPolicy, Impact, OperationMetadata, PlanBuilder, ProgressEvent,
+    ProgressListener, ProgressOutcome,
+};
+
+#[derive(Default)]
+struct RecordingProgress {
+    events: Vec<String>,
+}
+
+impl ProgressListener<TestError> for RecordingProgress {
+    fn on_event(&mut self, event: ProgressEvent<'_, TestError>) {
+        match event {
+            ProgressEvent::PlanStarted {
+                mode,
+                plan_name,
+                total_nodes,
+            } => self
+                .events
+                .push(format!("start {mode:?} {plan_name} {total_nodes}")),
+            ProgressEvent::NodeDescribed {
+                mode,
+                node,
+                outcome: ProgressOutcome::Described { dry_run_action },
+            } => self.events.push(format!(
+                "describe {mode:?} {} {} {:?}",
+                node.position(),
+                node.name(),
+                dry_run_action
+            )),
+            ProgressEvent::PlanFinished {
+                mode,
+                plan_name,
+                total_nodes,
+                outcome,
+            } => self.events.push(format!(
+                "finish {mode:?} {plan_name} {total_nodes} {outcome:?}"
+            )),
+            _ => self.events.push("unexpected event".to_owned()),
+        }
+    }
+}
 
 #[test]
 fn describe_does_not_invoke_operation_bodies() {
@@ -31,6 +72,54 @@ fn describe_execution_does_not_invoke_operation_bodies() {
 
     assert_eq!(context.calls(), Vec::<&str>::new());
     assert_eq!(description.len(), 2);
+}
+
+#[test]
+fn describe_with_listener_reports_static_rows_without_invoking_bodies() {
+    let context = TestContext::default();
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("describe_progress");
+
+    builder.add(panic0::<()>("write", Impact::Write));
+    let read = builder.add(panic0::<u32>("read", Impact::Read));
+    let plan = builder.finish(read);
+    let mut progress = RecordingProgress::default();
+
+    let description = plan.describe_with_listener(&mut progress);
+
+    assert_eq!(context.calls(), Vec::<&str>::new());
+    assert_eq!(description.len(), 2);
+    assert_eq!(
+        progress.events,
+        vec![
+            "start Describe describe_progress 2",
+            "describe Describe 1 write Some(Skip)",
+            "describe Describe 2 read Some(Run)",
+            "finish Describe describe_progress 2 Complete",
+        ]
+    );
+}
+
+#[test]
+fn describe_execution_with_listener_omits_dry_run_actions() {
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("execute_progress");
+
+    builder.add(op0("write", Impact::Write, ()));
+    let read = builder.add(op0("read", Impact::Read, 1_u32));
+    let plan = builder.finish(read);
+    let mut progress = RecordingProgress::default();
+
+    let description = plan.describe_execution_with_listener(&mut progress);
+
+    assert_eq!(description.len(), 2);
+    assert_eq!(
+        progress.events,
+        vec![
+            "start Describe execute_progress 2",
+            "describe Describe 1 write None",
+            "describe Describe 2 read None",
+            "finish Describe execute_progress 2 Complete",
+        ]
+    );
 }
 
 #[test]
