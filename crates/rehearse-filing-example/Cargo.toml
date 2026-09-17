@@ -1,0 +1,14 @@
+[package]
+name = "rehearse-filing-example"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "An office document filing CLI demonstrating rehearse"
+publish = false
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+rehearse = { path = "../rehearse" }
+tokio = { version = "1", features = ["macros", "rt"] }

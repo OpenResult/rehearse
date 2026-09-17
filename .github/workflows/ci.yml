@@ -28,11 +28,17 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets ${{ matrix.features }} --locked -- -D warnings
-      - run: cargo test --workspace ${{ matrix.features }} --locked
-      - run: cargo doc --workspace --no-deps ${{ matrix.features }} --locked
+      # Select the library crates explicitly so the filing CLI's macro dependency
+      # does not enable macros in the manual and serde-only configurations.
+      - run: cargo clippy -p rehearse -p rehearse-macros --all-targets ${{ matrix.features }} --locked -- -D warnings
+      - run: cargo test -p rehearse -p rehearse-macros ${{ matrix.features }} --locked
+      - run: cargo doc -p rehearse -p rehearse-macros --no-deps ${{ matrix.features }} --locked
         env:
           RUSTDOCFLAGS: -D warnings
+      - if: matrix.configuration == 'all'
+        run: cargo clippy -p rehearse-filing-example --all-targets --locked -- -D warnings
+      - if: matrix.configuration == 'all'
+        run: cargo test -p rehearse-filing-example --locked
 
   packaging:
     name: Packaging and Rust 1.85 consumers

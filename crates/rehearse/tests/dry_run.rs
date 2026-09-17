@@ -263,7 +263,7 @@ async fn dry_run_with_listener_reports_all_node_outcomes_in_order() {
             "start-node DryRun 2 write".to_owned(),
             "finish-node DryRun 2 write skipped:write operation".to_owned(),
             "start-node DryRun 3 blocked".to_owned(),
-            format!("finish-node DryRun 3 blocked blocked:{:?}", &[write.node()]),
+            format!("finish-node DryRun 3 blocked blocked:{:?}", [write.node()]),
             "start-node DryRun 4 opaque".to_owned(),
             "finish-node DryRun 4 opaque denied:opaque operation".to_owned(),
             "start-node DryRun 5 failed".to_owned(),

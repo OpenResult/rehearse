@@ -78,6 +78,16 @@ Examples that expose command-line flags use `clap` through dev-dependencies.
 This keeps the runtime crate dependency surface small while making example help
 and argument validation consistent.
 
+The standalone `crates/rehearse-filing-example` application is a non-published
+workspace member. It owns its `clap` and Tokio dependencies and demonstrates a
+fixed seven-operation plan over a batch of office documents. Destination
+validation runs during dry-run, the independent inbox check runs after skipped
+moves, and verification depends on a real move receipt. Moves use hard-link
+creation followed by source removal to refuse destination replacement; the
+example documents its same-filesystem requirement and partial-batch behavior.
+CI selects the library crates explicitly for feature-isolation checks so the
+application's macro dependency does not enable macros in manual configurations.
+
 ## Static describe
 
 - `Plan::describe()` returns an owned `PlanDescription` snapshot using
@@ -146,7 +156,7 @@ and argument validation consistent.
 
 ## Packaging
 
-- Both crates inherit workspace version, edition, license, and Rust 1.85 minimum
+- The library crates inherit workspace version, edition, license, and Rust 1.85 minimum
   compiler metadata. Stable Rust runs the dev tooling and diagnostic snapshots.
 - The workspace uses the Apache-2.0 license for published packages.
 - The runtime crate's optional dependency on `rehearse-macros` includes a
@@ -170,8 +180,9 @@ and argument validation consistent.
 - Workspace versions, dependency requirements, renames, target predicates,
   feature flags, and MSRV come from `cargo metadata`. Index records follow
   <https://doc.rust-lang.org/cargo/reference/registry-index.html>.
-- The script stages only workspace manifests, crate directories, the README,
-  and license. It parses the runtime manifest to replace the local macro path
+- The script stages only workspace manifests, the two published crate directories,
+  the README, and license, restricting the staged workspace to those two members.
+  It parses the runtime manifest to replace the local macro path
   with a registry dependency, without changing the source manifest.
 - Both archives are built and verified by Cargo, then indexed in dependency
   order in a file-backed git registry. Real `cargo publish` is not involved.

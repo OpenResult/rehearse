@@ -123,6 +123,11 @@ def stage_workspace(root, stage):
     for name in ["rehearse", "rehearse-macros"]:
         shutil.copytree(root / "crates" / name, stage / "crates" / name,
                         ignore=shutil.ignore_patterns("target", ".git"))
+    # The filing application is a non-published workspace member and is not staged.
+    workspace_manifest = stage / "Cargo.toml"
+    workspace = tomllib.loads(workspace_manifest.read_text())
+    workspace["workspace"]["members"] = ["crates/rehearse", "crates/rehearse-macros"]
+    write_toml(workspace_manifest, workspace)
     manifest = stage / "crates/rehearse/Cargo.toml"
     data = tomllib.loads(manifest.read_text())
     dependency = data["dependencies"]["rehearse-macros"]

@@ -4,7 +4,7 @@ import tempfile
 import tomllib
 import unittest
 
-from publish_local import MARKER, index_entry, prepare_directory, write_toml
+from publish_local import MARKER, index_entry, prepare_directory, stage_workspace, write_toml
 
 
 class RegistryTests(unittest.TestCase):
@@ -90,6 +90,16 @@ class RegistryTests(unittest.TestCase):
         path = self.base / "Cargo.toml"
         write_toml(path, data)
         self.assertEqual(tomllib.loads(path.read_text()), data)
+
+    def test_staging_excludes_nonpublished_workspace_example(self):
+        root = Path(__file__).resolve().parent.parent
+        stage = self.base / "stage"
+        stage_workspace(root, stage)
+        workspace = tomllib.loads((stage / "Cargo.toml").read_text())["workspace"]
+        self.assertEqual(workspace["members"], ["crates/rehearse", "crates/rehearse-macros"])
+        self.assertEqual(workspace["package"]["version"],
+                         tomllib.loads((root / "Cargo.toml").read_text())["workspace"]["package"]["version"])
+        self.assertFalse((stage / "crates/rehearse-filing-example").exists())
 
 
 if __name__ == "__main__":

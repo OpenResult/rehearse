@@ -25,7 +25,7 @@ declared operations, and runners decide how each operation behaves.
 
 ## Install
 
-The upcoming 0.3 release uses the following dependency declaration:
+Add rehearse to your project:
 
 ```toml
 [dependencies]
@@ -104,6 +104,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Calling `release(...)` builds the plan only. `read_version` and `deploy` run
 only through `dry_run` or `execute`, and the default dry-run policy skips the
 write.
+
+## Office Filing Example
+
+[`crates/rehearse-filing-example`](crates/rehearse-filing-example) is a standalone
+CLI that sorts an office inbox into invoices, expenses, minutes, reports, and a
+pending-review folder. It demonstrates static descriptions, safe dry-runs,
+independent reads after skipped writes, and real moves without replacing existing
+destination files.
+
+```bash
+cargo run -p rehearse-filing-example -- --seed-demo
+cargo run -p rehearse-filing-example -- --describe
+cargo run -p rehearse-filing-example                 # dry-run by default
+cargo run -p rehearse-filing-example -- --execute
+```
+
+These commands use `target/filing-office`. See the example's
+[README](crates/rehearse-filing-example/README.md) for filing rules and filesystem
+requirements.
 
 ## Local Publish Smoke Test
 

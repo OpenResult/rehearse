@@ -20,7 +20,8 @@ or prove whether arbitrary Rust code mutates state.
 .
 ├── crates/
 │   ├── rehearse/          # runtime facade crate, examples, integration tests
-│   └── rehearse-macros/   # #[operation], #[pipeline], and step! macros
+│   ├── rehearse-macros/   # #[operation], #[pipeline], and step! macros
+│   └── rehearse-filing-example/ # non-published office filing CLI
 ├── scripts/
 │   └── publish-local.sh   # no-server local registry smoke test
 ├── DESIGN.md
@@ -129,6 +130,8 @@ error.
   runs the guarded crates.io publish workflow in safe dry-run mode.
 - `cargo run -p rehearse --example configure_vscode -- --dry-run`
   rehearses adding the project rust-analyzer settings to `.vscode/settings.json`.
+- `cargo run -p rehearse-filing-example -- --seed-demo`
+  creates a sample office inbox; omit the flag to dry-run or use `--execute` to file it.
 - `scripts/publish-local.sh`
   uses Python 3.11+ to create a marked file-backed local Cargo registry under
   `target/local-registry/generated` and verifies four consumer configurations.

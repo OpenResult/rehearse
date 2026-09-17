@@ -202,6 +202,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rehearse-filing-example"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "rehearse",
+ "tokio",
+]
+
+[[package]]
 name = "rehearse-macros"
 version = "0.3.0"
 dependencies = [

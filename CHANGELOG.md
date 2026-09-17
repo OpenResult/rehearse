@@ -2,9 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
-
-### 0.3.0 preparation
+## 0.3.0 - 2026-09-17
 
 - Validate builder ownership, producer order, and output types before returning
   plans; add `PlanBuilder::try_finish` and `PlanBuildError`.
@@ -18,8 +16,10 @@ All notable changes to this project are documented here.
 - Guard local registry cleanup with ownership markers and derive packaging
   metadata from Cargo; verify four packaged consumer configurations.
 - Document breaking API and serialized error changes in `MIGRATION.md`.
-
-The workspace is prepared for 0.3.0; this entry does not claim publication.
+- Add the non-published `rehearse-filing-example` workspace CLI with sample office
+  documents, static descriptions, dry-run destination checks, and filing without
+  overwriting existing destinations. Keep its dependencies isolated from library
+  feature checks and release packaging.
 
 ## 0.2.0 - 2026-06-23
 
