@@ -1,5 +1,5 @@
-error: borrowing a value produced by `step!` across pipeline steps is not supported
-  --> tests/ui/pipeline/fail/borrow_value.rs:22:21
+error: values produced by `step!` may only be direct step arguments or the final output
+  --> tests/ui/pipeline/fail/borrow_value.rs:22:22
    |
 22 |     let _borrowed = &value;
-   |                     ^^^^^^
+   |                      ^^^^^

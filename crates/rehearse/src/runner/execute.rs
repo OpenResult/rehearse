@@ -1,5 +1,6 @@
 use crate::operation::NodeRunError;
-use crate::plan::store::{ResolveInputError, ValueStore};
+use crate::plan::store::ValueStore;
+use crate::InvariantError;
 use crate::{
     ExecuteError, NoopProgress, Plan, ProgressEvent, ProgressListener, ProgressMode, ProgressNode,
     ProgressOutcome, ProgressPlanOutcome,
@@ -26,7 +27,7 @@ where
     E: Send + 'static,
     L: ProgressListener<E> + ?Sized,
 {
-    let mut store = ValueStore::new();
+    let mut store = ValueStore::new(plan.owner);
     let total_nodes = plan.nodes.len();
 
     listener.on_event(ProgressEvent::PlanStarted {
@@ -69,12 +70,12 @@ where
                 total_nodes,
                 outcome: ProgressPlanOutcome::Failed,
             });
-            return Err(ExecuteError::Internal(format!(
-                "node {} ('{}') has unavailable dependencies: {}",
-                node.id(),
-                metadata.name(),
-                format_node_list(&missing)
-            )));
+            return Err(ExecuteError::Internal(
+                InvariantError::UnavailableDependencies {
+                    node: node.id(),
+                    missing_dependencies: missing,
+                },
+            ));
         }
 
         match node.run(context, &store).await {
@@ -104,7 +105,11 @@ where
                     source,
                 });
             }
-            Err(NodeRunError::Internal(message)) => {
+            Err(NodeRunError::Internal(source)) => {
+                let message = InvariantError::Input {
+                    node: node.id(),
+                    source,
+                };
                 listener.on_event(ProgressEvent::NodeFinished {
                     mode: ProgressMode::Execute,
                     node: progress_node,
@@ -138,19 +143,9 @@ where
                 total_nodes,
                 outcome: ProgressPlanOutcome::Failed,
             });
-            Err(ExecuteError::Internal(final_output_error(error)))
+            Err(ExecuteError::Internal(InvariantError::FinalOutput {
+                source: error,
+            }))
         }
     }
-}
-
-fn format_node_list(nodes: &[crate::NodeId]) -> String {
-    nodes
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-fn final_output_error(error: ResolveInputError) -> String {
-    format!("final output could not be resolved: {error}")
 }

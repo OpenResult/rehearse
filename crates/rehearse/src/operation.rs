@@ -1,4 +1,6 @@
 use crate::plan::store::ValueStore;
+use crate::plan::value::Dependency;
+use crate::ValueError;
 use crate::{Impact, NodeId, OperationInputs};
 use std::future::Future;
 use std::pin::Pin;
@@ -43,6 +45,7 @@ impl OperationMetadata {
 pub struct Operation<C, T, E> {
     metadata: OperationMetadata,
     dependencies: Vec<NodeId>,
+    pub(crate) references: Vec<Dependency>,
     runner: Box<ErasedRunner<C, T, E>>,
 }
 
@@ -66,15 +69,15 @@ where
         I: OperationInputs,
         F: for<'a> Fn(&'a C, I::Resolved) -> BoxFuture<'a, Result<T, E>> + Send + Sync + 'static,
     {
-        let dependencies = inputs.dependencies();
+        let references = inputs.references();
+        let dependencies = references.iter().map(|reference| reference.node).collect();
         let executor = Arc::new(executor);
         let runner: Box<ErasedRunner<C, T, E>> =
             Box::new(move |context: &C, store: &ValueStore| {
                 let resolved = inputs.resolve(store);
                 let executor = Arc::clone(&executor);
                 Box::pin(async move {
-                    let resolved =
-                        resolved.map_err(|error| NodeRunError::Internal(error.to_string()))?;
+                    let resolved = resolved.map_err(NodeRunError::Internal)?;
                     executor(context, resolved)
                         .await
                         .map_err(NodeRunError::Operation)
@@ -84,6 +87,7 @@ where
         Self {
             metadata,
             dependencies,
+            references,
             runner,
         }
     }
@@ -127,5 +131,5 @@ where
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NodeRunError<E> {
     Operation(E),
-    Internal(String),
+    Internal(ValueError),
 }

@@ -25,11 +25,11 @@ declared operations, and runners decide how each operation behaves.
 
 ## Install
 
-Use the released crate from crates.io:
+The upcoming 0.3 release uses the following dependency declaration:
 
 ```toml
 [dependencies]
-rehearse = "0.2.0"
+rehearse = "0.3.0"
 ```
 
 For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
@@ -42,8 +42,10 @@ types with:
 
 ```toml
 [dependencies]
-rehearse = { version = "0.2.0", features = ["serde"] }
+rehearse = { version = "0.3.0", features = ["serde"] }
 ```
+
+Rust 1.85 or newer is supported. See [MIGRATION.md](MIGRATION.md) for the 0.3 API changes.
 
 ## Five-Minute Quickstart
 
@@ -112,22 +114,26 @@ artifact resolution without writing to user-level Cargo state:
 scripts/publish-local.sh
 ```
 
-By default it recreates `target/local-registry`, packages both crates, writes a
-git-backed Cargo registry index and local `.crate` downloads, then compiles a
-throwaway consumer crate with:
+With Python 3.11 or newer, it creates an owned `target/local-registry` directory,
+recreates only its `generated/` child, packages both crates, and writes a
+git-backed Cargo registry index and local `.crate` downloads, then builds consumers for default, manual, serde-only, and all-feature configurations.
+The all-feature consumer uses:
 
 ```toml
-rehearse = { version = "0.2.0", registry = "rehearse-local", features = ["serde"] }
+rehearse = { version = "0.3.0", registry = "rehearse-local", features = ["serde"] }
 ```
 
 Expected final output includes the generated `.crate` paths and:
 
 ```text
-consumer checked successfully using registry 'rehearse-local'
+all four consumers checked successfully using registry 'rehearse-local'
 ```
 
 Use `LOCAL_REGISTRY_DIR=/path/to/registry scripts/publish-local.sh` to choose a
-different generated registry location.
+different generated registry location. New locations must be empty or absent;
+existing locations must carry this checkout's ownership marker. Symlink paths
+and repository/home/root directories are refused. To test consumers on the MSRV,
+set `REHEARSE_CONSUMER_TOOLCHAIN=1.85.0` after installing that Rust toolchain.
 
 ## Define Operations
 
@@ -192,8 +198,7 @@ fn deploy(credentials: String) -> Plan<Services, Deployment, DeployError> {
 let plan = deploy("secret".to_owned());
 ```
 
-For a complete macro-based local example covering describe, dry-run, and
-execute:
+For a manual-builder example demonstrating independent work during dry-run:
 
 ```bash
 cargo run -p rehearse --example read_after_write
@@ -388,8 +393,13 @@ use rehearse::{Input, PlanBuilder};
 let mut builder = PlanBuilder::<Services, DeployError>::new("deploy");
 let session = builder.add(login("secret".to_owned()));
 let deployment = builder.add(apply_changes(Input::value(session)));
-let plan = builder.finish(deployment);
+let plan = builder.try_finish(deployment)?;
 ```
+
+Handles belong to the builder that created them. `try_finish` rejects foreign
+inputs/outputs and invalid producer order or types without running operation
+bodies. `finish` performs the same validation and panics on invalid construction.
+`OperationInputs` is sealed; use the supported input shapes.
 
 Synchronous work can use `Operation::sync` without manually boxing a future:
 
@@ -410,11 +420,14 @@ let read = Operation::sync(
   `Result<Output, Error>` returns, up to eight non-context parameters, and no
   generics.
 - `#[pipeline]` currently supports straight-line plan constructors ending in
-  `Ok(value)`, with step-produced values usable only in later `step!(...)`
-  calls or the final output.
+  `Ok(value)`, with step-produced values usable only as direct arguments to later `step!(...)`
+  calls or the final output. Transformations and aliases are rejected, including
+  inside step arguments. Opaque macro arguments mentioning a handle (including
+  string literals) are conservatively rejected.
 - No preview hooks or predicted values.
 - No runtime branching, loops over operation outputs, retries, rollback,
-  durable execution, or serialization.
+  durable execution, or executable-plan serialization. Descriptions and reports
+  support optional serde serialization.
 - No automatic mutation detection.
 - Operation inputs and outputs must be owned cloneable values.
 - Dry-run and execute currently use the same context type.

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{Error, Expr, Local, Pat, Stmt};
 
@@ -17,11 +17,11 @@ pub(crate) fn lower(spec: PipelineSpec, runtime: TokenStream) -> syn::Result<Tok
     let vis = item.vis;
     let sig = item.sig;
     let name = sig.ident.to_string();
-    let builder = format_ident!("__rehearse_builder");
+    let builder = format_ident!("__rehearse_builder", span = Span::mixed_site());
     let block = item.block;
     let stmts = block.stmts;
     let mut step_values = HashSet::new();
-    let mut lowered = Vec::new();
+    let mut statements = Vec::new();
 
     let Some((last, prefix)) = stmts.split_last() else {
         return Err(Error::new_spanned(
@@ -31,11 +31,11 @@ pub(crate) fn lower(spec: PipelineSpec, runtime: TokenStream) -> syn::Result<Tok
     };
 
     for stmt in prefix {
-        if let Some(lowered_step) = lower_step_stmt(stmt, &builder, &mut step_values)? {
-            lowered.push(lowered_step);
+        if let Some(lowered_step) = parse_step_stmt(stmt, &mut step_values)? {
+            statements.push(lowered_step);
         } else {
-            validate::validate_ordinary_stmt(stmt, &step_values)?;
-            lowered.push(quote!(#stmt));
+            validate::validate_ordinary_stmt(stmt, &mut step_values)?;
+            statements.push(Statement::Ordinary(stmt.clone()));
         }
     }
 
@@ -49,6 +49,7 @@ pub(crate) fn lower(spec: PipelineSpec, runtime: TokenStream) -> syn::Result<Tok
         }
     };
 
+    let lowered = statements.iter().map(|statement| statement.lower(&builder));
     Ok(quote! {
         #(#attrs)*
         #vis #sig {
@@ -59,14 +60,13 @@ pub(crate) fn lower(spec: PipelineSpec, runtime: TokenStream) -> syn::Result<Tok
     })
 }
 
-fn lower_step_stmt(
+fn parse_step_stmt(
     stmt: &Stmt,
-    builder: &proc_macro2::Ident,
     step_values: &mut HashSet<String>,
-) -> syn::Result<Option<TokenStream>> {
+) -> syn::Result<Option<Statement>> {
     match stmt {
-        Stmt::Local(local) => lower_local_step(local, builder, step_values),
-        Stmt::Expr(expr, Some(_semi)) => lower_bare_step(expr, builder),
+        Stmt::Local(local) => parse_local_step(local, step_values),
+        Stmt::Expr(expr, Some(_semi)) => parse_bare_step(expr, step_values),
         Stmt::Expr(expr, None) => {
             if validate::has_step_macro(expr) {
                 return Err(Error::new_spanned(
@@ -80,11 +80,10 @@ fn lower_step_stmt(
     }
 }
 
-fn lower_local_step(
+fn parse_local_step(
     local: &Local,
-    builder: &proc_macro2::Ident,
     step_values: &mut HashSet<String>,
-) -> syn::Result<Option<TokenStream>> {
+) -> syn::Result<Option<Statement>> {
     let Some(init) = &local.init else {
         return Ok(None);
     };
@@ -135,15 +134,17 @@ fn lower_local_step(
         ));
     }
 
+    validate::validate_arguments(&operation, step_values)?;
     let ident = &pat.ident;
     step_values.insert(ident.to_string());
 
-    Ok(Some(quote! {
-        let #ident = #builder.add(#operation);
+    Ok(Some(Statement::Step {
+        binding: Some(ident.clone()),
+        operation,
     }))
 }
 
-fn lower_bare_step(expr: &Expr, builder: &proc_macro2::Ident) -> syn::Result<Option<TokenStream>> {
+fn parse_bare_step(expr: &Expr, step_values: &HashSet<String>) -> syn::Result<Option<Statement>> {
     if validate::has_step_macro(expr) && !matches!(expr, Expr::Try(_)) {
         return Err(Error::new_spanned(
             expr,
@@ -155,7 +156,34 @@ fn lower_bare_step(expr: &Expr, builder: &proc_macro2::Ident) -> syn::Result<Opt
         return Ok(None);
     };
 
-    Ok(Some(quote! {
-        let _ = #builder.add(#operation);
+    validate::validate_arguments(&operation, step_values)?;
+    Ok(Some(Statement::Step {
+        binding: None,
+        operation,
     }))
+}
+
+// Emit code only after every statement and the final output have been validated.
+enum Statement {
+    Ordinary(Stmt),
+    Step {
+        binding: Option<syn::Ident>,
+        operation: Expr,
+    },
+}
+
+impl Statement {
+    fn lower(&self, builder: &syn::Ident) -> TokenStream {
+        match self {
+            Self::Ordinary(stmt) => quote!(#stmt),
+            Self::Step {
+                binding: Some(binding),
+                operation,
+            } => quote!(let #binding = #builder.add(#operation);),
+            Self::Step {
+                binding: None,
+                operation,
+            } => quote!(let _ = #builder.add(#operation);),
+        }
+    }
 }

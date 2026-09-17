@@ -1,0 +1,13 @@
+error: `return` is not supported inside `#[pipeline]` bodies
+  --> tests/ui/pipeline/fail/argument_control_flow.rs:11:31
+   |
+11 |     let output = step!(seed({ return unreachable!(); }))?;
+   |                               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Plan`
+ --> tests/ui/pipeline/fail/argument_control_flow.rs:1:37
+  |
+1 | use rehearse::{operation, pipeline, Plan};
+  |                                     ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

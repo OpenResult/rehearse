@@ -1,3 +1,5 @@
+#![cfg(feature = "macros")]
+
 use std::process::Command;
 
 #[test]

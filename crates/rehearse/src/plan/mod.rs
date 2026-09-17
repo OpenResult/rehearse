@@ -1,8 +1,7 @@
 mod builder;
 pub(crate) mod node;
-#[doc(hidden)]
-pub mod store;
-mod value;
+pub(crate) mod store;
+pub(crate) mod value;
 
 pub use builder::PlanBuilder;
 pub use value::{Input, IntoInput, NodeId, OperationInputs, Value};
@@ -20,6 +19,7 @@ use std::marker::PhantomData;
 /// `C` is the shared context type, `T` is the final output type, and `E` is the
 /// common operation error type for the plan.
 pub struct Plan<C, T, E> {
+    pub(crate) owner: value::PlanId,
     pub(crate) name: String,
     pub(crate) nodes: Vec<Box<dyn ErasedNode<C, E>>>,
     pub(crate) output: Value<T>,

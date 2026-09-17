@@ -5,3 +5,5 @@ target/
 !.vscode/extensions.json
 
 .env.local
+
+__pycache__/

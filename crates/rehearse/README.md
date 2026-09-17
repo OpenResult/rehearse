@@ -17,7 +17,7 @@ arbitrary Rust code mutates state.
 
 ```toml
 [dependencies]
-rehearse = "0.2.0"
+rehearse = "0.3.0"
 ```
 
 The `macros` feature is enabled by default and re-exports the `#[operation]`,
@@ -28,8 +28,15 @@ types with:
 
 ```toml
 [dependencies]
-rehearse = { version = "0.2.0", features = ["serde"] }
+rehearse = { version = "0.3.0", features = ["serde"] }
 ```
+
+Rust 1.85 or newer is supported. In 0.3, `Value<T>` belongs to one builder;
+`PlanBuilder::try_finish` returns a `PlanBuildError` for invalid construction,
+and `finish` validates and panics on invalid construction. `OperationInputs` is
+sealed. Internal execution/report errors now carry `InvariantError` and
+`ValueError` instead of strings. Reports and descriptions support serde;
+executable plans are not serialized.
 
 ## Quickstart
 

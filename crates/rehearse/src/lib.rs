@@ -5,9 +5,24 @@
 //! runner decides whether each operation is only described, safely rehearsed, or
 //! fully executed.
 //!
-//! The default macro frontend is available through [`operation`] and
-//! [`pipeline`]. The manual [`PlanBuilder`] API remains public for tests and
+//! The default macro frontend is available through `#[operation]` and
+//! `#[pipeline]`. The manual [`PlanBuilder`] API remains public for tests and
 //! lower-level integrations.
+
+//! Manual construction works with default features disabled:
+//!
+//! ```
+//! use rehearse::{Impact, Operation, OperationMetadata, PlanBuilder};
+//!
+//! let mut builder = PlanBuilder::<(), ()>::new("example");
+//! let output = builder.add(Operation::sync(
+//!     OperationMetadata::new("answer", Impact::Pure),
+//!     (),
+//!     |_, ()| Ok(42_u32),
+//! ));
+//! let plan = builder.try_finish(output).expect("valid plan");
+//! assert_eq!(plan.describe().len(), 1);
+//! ```
 
 #![forbid(unsafe_code)]
 
@@ -19,15 +34,13 @@ mod policy;
 mod progress;
 mod report;
 
-#[doc(hidden)]
-pub mod __private;
 pub mod plan;
 mod runner;
 
 pub use describe::{
     PlanDescription, PlanDescriptionRow, PlanExecutionDescription, PlanExecutionDescriptionRow,
 };
-pub use error::{DryRunFailure, ExecuteError};
+pub use error::{DryRunFailure, ExecuteError, InvariantError, PlanBuildError, ValueError};
 pub use impact::Impact;
 pub use operation::{BoxFuture, Operation, OperationMetadata};
 pub use plan::{Input, IntoInput, NodeId, OperationInputs, Plan, PlanBuilder, Value};

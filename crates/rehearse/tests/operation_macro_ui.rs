@@ -1,3 +1,5 @@
+#![cfg(feature = "macros")]
+
 #[test]
 fn operation_macro_ui() {
     let cases = trybuild::TestCases::new();

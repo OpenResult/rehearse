@@ -2,6 +2,7 @@
 name = "rehearse"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Effect-aware operation planning with describe, dry-run, and execute modes."
@@ -16,7 +17,7 @@ macros = ["dep:rehearse-macros"]
 serde = ["dep:serde"]
 
 [dependencies]
-rehearse-macros = { version = "0.2.0", path = "../rehearse-macros", optional = true }
+rehearse-macros = { version = "0.3.0", path = "../rehearse-macros", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
@@ -24,3 +25,15 @@ clap = { version = "4", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 trybuild = "1"
+
+[[example]]
+name = "deploy"
+required-features = ["macros"]
+
+[[example]]
+name = "configure_vscode"
+required-features = ["macros"]
+
+[[example]]
+name = "conditional_rollout"
+required-features = ["macros"]

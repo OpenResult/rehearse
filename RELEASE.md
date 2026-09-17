@@ -27,10 +27,9 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 ```
 
-Run the local artifact-resolution smoke test:
+Run the local artifact-resolution smoke test with Python 3.11 or newer:
 
 ```bash
-rm -rf target/local-registry
 scripts/publish-local.sh
 ```
 
@@ -45,6 +44,17 @@ Run the guarded publish workflow in safe dry-run mode:
 
 ```bash
 cargo run -p rehearse --example deploy
+```
+
+The smoke script only cleans an owned `generated/` child. If an older unmarked
+`target/local-registry` exists, choose a fresh `LOCAL_REGISTRY_DIR` or inspect and
+remove the old generated files manually. It refuses unowned nonempty locations.
+
+Run the four consumer configurations on the MSRV too:
+
+```bash
+rustup toolchain install 1.85.0 --profile minimal
+REHEARSE_CONSUMER_TOOLCHAIN=1.85.0 scripts/publish-local.sh
 ```
 
 ## Publish
@@ -76,8 +86,8 @@ curl -fsS -H 'User-Agent: rehearse-release-check (https://github.com/OpenResult/
     https://crates.io/api/v1/crates/rehearse | python3 -m json.tool
 curl -fsS -H 'User-Agent: rehearse-release-check (https://github.com/OpenResult/rehearse)' \
     https://crates.io/api/v1/crates/rehearse-macros | python3 -m json.tool
-curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse/0.2.0/rehearse/
-curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse-macros/0.2.0/rehearse_macros/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse/0.3.0/rehearse/
+curl -fsS -o /dev/null -w '%{http_code}\n' https://docs.rs/rehearse-macros/0.3.0/rehearse_macros/
 ```
 
 Compile a consumer from crates.io under `target/published-consumer`:
@@ -88,12 +98,12 @@ mkdir -p target/published-consumer/src
 cat > target/published-consumer/Cargo.toml <<'EOF'
 [package]
 name = "published-consumer"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 publish = false
 
 [dependencies]
-rehearse = "0.2.0"
+rehearse = "0.3.0"
 
 [workspace]
 EOF
@@ -133,11 +143,13 @@ After the publish and verification succeed, create and push the release tag if
 it does not already exist:
 
 ```bash
-git tag -a v0.2.0 -m "v0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
 ```
 
 ## Follow-Up
 
-The workspace intentionally does not declare `rust-version` yet. Choose and
-verify an MSRV in a later phase before adding it to package metadata.
+The supported minimum Rust version is 1.85. CI checks the library crates and
+independent packaged consumers on 1.85.0. Contributor tooling and compile-fail
+snapshots use stable Rust; current trybuild requires a newer compiler than the
+library MSRV. Update the migration notes and CI together if this policy changes.

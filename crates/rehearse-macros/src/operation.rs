@@ -174,6 +174,7 @@ impl OperationSpec {
             )
         };
 
+        let internal_context = syn::Ident::new("__rehearse_context", Span::mixed_site());
         let (context_generic, context_return, context_arg, context_binding) = match self.context {
             Some(context) => {
                 let context_ty = context.ty;
@@ -181,14 +182,14 @@ impl OperationSpec {
                 (
                     quote!(),
                     quote!(#context_ty),
-                    quote!(__rehearse_context: &#context_ty),
-                    quote!(let #context_ident = __rehearse_context;),
+                    quote!(#internal_context: &#context_ty),
+                    quote!(let #context_ident = #internal_context;),
                 )
             }
             None => (
                 quote!(<__RehearseContext>),
                 quote!(__RehearseContext),
-                quote!(_rehearse_context: &__RehearseContext),
+                quote!(#internal_context: &__RehearseContext),
                 quote!(),
             ),
         };
@@ -196,7 +197,7 @@ impl OperationSpec {
         let context_where = if context_generic.is_empty() {
             quote!()
         } else {
-            quote!(where __RehearseContext: Sync + 'static)
+            quote!(where __RehearseContext: ::std::marker::Sync + 'static)
         };
 
         quote! {
@@ -211,8 +212,8 @@ impl OperationSpec {
                 #runtime::Operation::new(
                     #metadata,
                     #inputs,
-                    move |#context_arg, #resolved_pattern| -> #runtime::BoxFuture<'_, Result<#output, #error>> {
-                        Box::pin(async move {
+                    move |#context_arg, #resolved_pattern| -> #runtime::BoxFuture<'_, ::std::result::Result<#output, #error>> {
+                        ::std::boxed::Box::pin(async move {
                             #context_binding
                             #body
                         })

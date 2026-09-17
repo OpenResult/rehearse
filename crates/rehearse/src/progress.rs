@@ -1,4 +1,4 @@
-use crate::{DryRunAction, DryRunStatus, Impact, NodeId};
+use crate::{DryRunAction, DryRunStatus, Impact, InvariantError, NodeId};
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::time::Instant;
@@ -126,8 +126,8 @@ pub enum ProgressOutcome<'a, E> {
     },
     /// The runtime reported an internal invariant error.
     Internal {
-        /// Human-readable internal error.
-        error: &'a str,
+        /// Structured internal error.
+        error: &'a InvariantError,
     },
 }
 

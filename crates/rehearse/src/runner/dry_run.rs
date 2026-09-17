@@ -1,5 +1,6 @@
 use crate::operation::NodeRunError;
 use crate::plan::store::ValueStore;
+use crate::InvariantError;
 use crate::{
     DryRunAction, DryRunPolicy, DryRunReport, NodeOutcome, NodeReport, NoopProgress,
     OperationMetadata, Plan, ProgressEvent, ProgressListener, ProgressMode, ProgressNode,
@@ -30,7 +31,7 @@ where
     P: DryRunPolicy,
     L: ProgressListener<E> + ?Sized,
 {
-    let mut store = ValueStore::new();
+    let mut store = ValueStore::new(plan.owner);
     let mut report = DryRunReport::new(plan.name());
     let total_nodes = plan.nodes.len();
 
@@ -79,7 +80,12 @@ where
                             NodeOutcome::Executed
                         }
                         Err(NodeRunError::Operation(error)) => NodeOutcome::Failed { error },
-                        Err(NodeRunError::Internal(error)) => NodeOutcome::Internal { error },
+                        Err(NodeRunError::Internal(source)) => NodeOutcome::Internal {
+                            error: InvariantError::Input {
+                                node: node.id(),
+                                source,
+                            },
+                        },
                     }
                 }
             }

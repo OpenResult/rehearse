@@ -6,7 +6,7 @@ Most users should depend on `rehearse` instead of this crate directly:
 
 ```toml
 [dependencies]
-rehearse = "0.2.0"
+rehearse = "0.3.0"
 ```
 
 The runtime crate enables its default `macros` feature and re-exports:

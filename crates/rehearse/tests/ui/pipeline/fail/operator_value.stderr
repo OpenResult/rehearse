@@ -1,5 +1,5 @@
-error: operators on values produced by `step!` are not supported
+error: values produced by `step!` may only be direct step arguments or the final output
   --> tests/ui/pipeline/fail/operator_value.rs:22:16
    |
 22 |     let _sum = value + 1;
-   |                ^^^^^^^^^
+   |                ^^^^^

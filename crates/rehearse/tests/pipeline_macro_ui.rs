@@ -1,3 +1,5 @@
+#![cfg(feature = "macros")]
+
 #[test]
 fn pipeline_macro_ui() {
     let cases = trybuild::TestCases::new();

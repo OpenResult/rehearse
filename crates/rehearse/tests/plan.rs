@@ -189,3 +189,109 @@ async fn blocked_nodes_do_not_receive_fabricated_values() {
         } if missing_dependencies == &[write.node()]
     ));
 }
+
+#[test]
+fn foreign_inputs_are_rejected_before_any_body_runs() {
+    let mut a = PlanBuilder::<TestContext, TestError>::new("a");
+    let foreign = a.add(op0("foreign", Impact::Pure, 100_u32));
+    let mut b = PlanBuilder::<TestContext, TestError>::new("b");
+    let local = b.add(common::panic0::<u32>("local", Impact::Write));
+    assert_eq!(foreign.node(), local.node());
+    assert_ne!(foreign, local);
+    let consumer = b.add(panic1::<u32, u32>(
+        "consumer",
+        Impact::Write,
+        Input::value(foreign),
+    ));
+    let error = b
+        .try_finish(consumer)
+        .err()
+        .expect("foreign input rejected");
+    assert_eq!(
+        error,
+        rehearse::PlanBuildError::ForeignValue {
+            node: foreign.node(),
+            consumer: Some(consumer.node()),
+        }
+    );
+}
+
+#[test]
+fn foreign_final_outputs_are_rejected_even_for_empty_plans() {
+    let mut a = PlanBuilder::<TestContext, TestError>::new("a");
+    let foreign = a.add(op0("foreign", Impact::Pure, 100_u32));
+    for populated in [false, true] {
+        let mut b = PlanBuilder::<TestContext, TestError>::new("b");
+        if populated {
+            b.add(common::panic0::<u32>("local", Impact::Pure));
+        }
+        assert_eq!(
+            b.try_finish(foreign).err(),
+            Some(rehearse::PlanBuildError::ForeignValue {
+                node: foreign.node(),
+                consumer: None,
+            })
+        );
+    }
+}
+
+#[test]
+#[should_panic(expected = "value belongs to another plan")]
+fn finish_panics_for_foreign_output() {
+    let mut a = PlanBuilder::<TestContext, TestError>::new("a");
+    let foreign = a.add(op0("foreign", Impact::Pure, 100_u32));
+    PlanBuilder::<TestContext, TestError>::new("b").finish(foreign);
+}
+
+#[test]
+fn value_is_copy_without_a_clone_or_copy_output_bound() {
+    struct NotClone;
+    fn assert_copy<T: Copy>() {}
+    assert_copy::<rehearse::Value<NotClone>>();
+}
+
+#[tokio::test]
+async fn concurrent_runs_of_one_plan_have_separate_stores() {
+    let mut builder = PlanBuilder::<u32, ()>::new("concurrent");
+    let value = builder.add(Operation::new(
+        metadata("context", Impact::Read),
+        (),
+        |context, ()| {
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                Ok(*context)
+            })
+        },
+    ));
+    let output = builder.add(Operation::sync(
+        metadata("double", Impact::Pure),
+        Input::value(value),
+        |_, v| Ok(v * 2),
+    ));
+    let plan = builder.try_finish(output).expect("valid plan");
+    let (left, right) = tokio::join!(plan.execute(&10), plan.execute(&20));
+    assert_eq!(left.unwrap(), 20);
+    assert_eq!(right.unwrap(), 40);
+}
+
+#[test]
+fn validation_and_describe_do_not_clone_literal_inputs() {
+    struct NoCloneDuringConstruction;
+    impl Clone for NoCloneDuringConstruction {
+        fn clone(&self) -> Self {
+            panic!("literal must not be resolved during construction or describe")
+        }
+    }
+    let mut builder = PlanBuilder::<(), ()>::new("static");
+    let output = builder.add(Operation::sync(
+        metadata("input", Impact::Read),
+        Input::literal(NoCloneDuringConstruction),
+        |_, _| Ok(()),
+    ));
+    let plan = builder
+        .try_finish(output)
+        .expect("metadata-only validation");
+    assert_eq!(plan.describe().len(), 1);
+    assert_eq!(plan.describe_execution().len(), 1);
+    assert!(plan.to_mermaid().contains("input"));
+}

@@ -272,3 +272,35 @@ async fn dry_run_with_listener_reports_all_node_outcomes_in_order() {
         ]
     );
 }
+
+#[tokio::test]
+async fn policy_precedes_dependencies_and_independent_work_continues() {
+    let mut builder = PlanBuilder::<TestContext, TestError>::new("policy-first");
+    let skipped = builder.add(panic0::<u32>("skipped", Impact::Write));
+    let denied = builder.add(panic1::<u32, u32>(
+        "denied",
+        Impact::Opaque,
+        Input::value(skipped),
+    ));
+    let blocked = builder.add(panic1::<u32, u32>(
+        "blocked",
+        Impact::Read,
+        Input::value(denied),
+    ));
+    builder.add(panic1::<u32, ()>(
+        "skipped_again",
+        Impact::Delete,
+        Input::value(blocked),
+    ));
+    builder.add(fail0::<()>("failed", Impact::Read, "failure"));
+    let final_read = builder.add(op0("independent", Impact::Read, 42_u32));
+    let plan = builder.finish(final_read);
+    let context = TestContext::default();
+    let report = plan.dry_run(&context).await;
+    let outcomes: Vec<_> = report.iter().map(|node| node.outcome()).collect();
+    assert!(outcomes[1].is_denied());
+    assert!(outcomes[2].is_blocked());
+    assert!(outcomes[3].is_skipped());
+    assert!(outcomes[5].is_executed());
+    assert_eq!(context.calls(), vec!["failed", "independent"]);
+}

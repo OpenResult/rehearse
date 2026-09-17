@@ -1,4 +1,4 @@
-error: branching on a value produced by `step!` is not supported
+error: values produced by `step!` may only be direct step arguments or the final output
   --> tests/ui/pipeline/fail/branch_on_value.rs:22:8
    |
 22 |     if value {

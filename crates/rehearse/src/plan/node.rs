@@ -1,13 +1,17 @@
 use super::store::{StoredValue, ValueStore};
+use super::value::Dependency;
 use super::NodeId;
 use crate::operation::NodeRunError;
 use crate::{BoxFuture, Operation, OperationMetadata};
+use std::any::{type_name, TypeId};
 use std::marker::PhantomData;
 
 pub(crate) trait ErasedNode<C, E>: Send + Sync {
     fn id(&self) -> NodeId;
     fn metadata(&self) -> &OperationMetadata;
     fn dependencies(&self) -> &[NodeId];
+    fn references(&self) -> &[Dependency];
+    fn output_type(&self) -> (TypeId, &'static str);
     fn run<'a>(
         &'a self,
         context: &'a C,
@@ -47,6 +51,14 @@ where
 
     fn dependencies(&self) -> &[NodeId] {
         self.operation.dependencies()
+    }
+
+    fn references(&self) -> &[Dependency] {
+        &self.operation.references
+    }
+
+    fn output_type(&self) -> (TypeId, &'static str) {
+        (TypeId::of::<T>(), type_name::<T>())
     }
 
     fn run<'a>(

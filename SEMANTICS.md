@@ -74,6 +74,18 @@ handles to outputs from earlier nodes.
 Plan construction may evaluate ordinary Rust used to build the plan, but it must
 not invoke the delayed operation executor.
 
+## Construction Validation
+
+Each value handle belongs to the builder that produced it. `try_finish` checks
+all recorded inputs and the final output for owner, producer existence, type,
+and producer-before-consumer order. It returns `PlanBuildError` on invalid
+construction. `finish` performs the same checks and panics at its caller on
+invalid construction. No invalid plan is returned by either method.
+
+Validation is static: it does not resolve values, clone literal inputs, access a
+context, or invoke operation bodies. Private identities are never reused and
+are separate from the plan-local node indices used in descriptions and reports.
+
 ## Order And Value Dependencies
 
 The plan is an ordered list. List order controls execute traversal and report
@@ -142,6 +154,12 @@ Every dry-run node has exactly one outcome:
 - `Denied`
 - `Blocked`
 - `Failed`
+- `Internal`: a defensive runtime invariant failure, counted as a failure
+
+`Internal` retains a structured `InvariantError`, with a `ValueError` source
+where resolution failed. Execute errors preserve the same data and original
+operation error sources. Expected skip/deny/block outcomes remain distinct from
+invariant failures.
 
 `DryRunStatus` is derived from node outcomes:
 
@@ -151,11 +169,11 @@ Every dry-run node has exactly one outcome:
 - `Failed`: one or more executed nodes failed or an internal invariant error was
   reported.
 
-`require_no_failures()` rejects failed operations only. It does not reject
+`require_no_failures()` rejects operation failures and internal invariant errors. It does not reject
 ordinary skipped writes or deletes.
 
 `require_complete()` rejects every non-complete report, including skipped,
-denied, blocked, and failed nodes.
+denied, blocked, failed, and internal-error nodes.
 
 ## Static Describe
 
@@ -190,5 +208,12 @@ semantics.
   futures. Tests and examples may use Tokio.
 - The operation macro supports async functions only. Manual operations can use
   `Operation::sync` for synchronous work.
+- `OperationInputs` is sealed; custom input-resolution implementations are not
+  supported.
 - Generic pipeline functions, async pipeline constructors, and arbitrary Rust
   control-flow lowering are not currently supported.
+
+Pipeline handles may appear only as direct step arguments or the final output.
+Validation tracks lexical bindings and rejects transformations inside step
+arguments too. Opaque macro arguments mentioning active handles are rejected
+conservatively; arbitrary external macro expansions are not analyzed.

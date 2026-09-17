@@ -85,7 +85,11 @@ classification.
 - `Plan<C, T, E>` uses generic order: shared context, final output, common error.
 - `PlanBuilder<C, E>` is the manual builder.
 - `Operation<C, T, E>` stores metadata, inputs, and a delayed executor.
-- `Value<T>` is a typed node handle and is `Copy` regardless of `T`.
+- `Value<T>` is a typed, builder-owned node handle and is `Copy` regardless of `T`.
+- `try_finish` validates all references and the final output before returning a plan;
+  `finish` performs the same validation and panics on invalid construction.
+- `OperationInputs` is sealed; store and dependency-resolution plumbing are private.
+- Keep `PlanBuildError`, `InvariantError`, and `ValueError` structured until display.
 - Operation inputs support `()`, one `Input<T>`, and tuples up to eight inputs.
 - Inputs and outputs require `Clone + Send + Sync + 'static`.
 - All operations in one plan share one context type and one error type.
@@ -126,8 +130,8 @@ error.
 - `cargo run -p rehearse --example configure_vscode -- --dry-run`
   rehearses adding the project rust-analyzer settings to `.vscode/settings.json`.
 - `scripts/publish-local.sh`
-  creates a file-backed local Cargo registry under `target/local-registry` and
-  verifies a generated consumer crate resolves both local crates from it.
+  uses Python 3.11+ to create a marked file-backed local Cargo registry under
+  `target/local-registry/generated` and verifies four consumer configurations.
 
 ## Verification
 

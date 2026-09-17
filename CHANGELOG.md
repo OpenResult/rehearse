@@ -4,7 +4,22 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
-No changes yet.
+### 0.3.0 preparation
+
+- Validate builder ownership, producer order, and output types before returning
+  plans; add `PlanBuilder::try_finish` and `PlanBuildError`.
+- Seal `OperationInputs` and make value-store plumbing private.
+- Preserve structured `InvariantError` and `ValueError` data through execution,
+  reports, progress listeners, and error source chains.
+- Reject pipeline handle transformations, aliases, and opaque macro uses;
+  respect lexical shadowing and isolate generated local names.
+- Fix testing and rustdoc with macros disabled; add four-configuration CI on
+  Linux and macOS and declare/test Rust 1.85 as the library MSRV.
+- Guard local registry cleanup with ownership markers and derive packaging
+  metadata from Cargo; verify four packaged consumer configurations.
+- Document breaking API and serialized error changes in `MIGRATION.md`.
+
+The workspace is prepared for 0.3.0; this entry does not claim publication.
 
 ## 0.2.0 - 2026-06-23
 

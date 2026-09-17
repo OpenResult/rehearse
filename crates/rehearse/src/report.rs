@@ -1,4 +1,4 @@
-use crate::{DryRunFailure, Impact, NodeId, OperationMetadata};
+use crate::{DryRunFailure, Impact, InvariantError, NodeId, OperationMetadata};
 use std::fmt;
 
 /// Outcome recorded for one dry-run node.
@@ -28,8 +28,8 @@ pub enum NodeOutcome<E> {
         /// Original operation error.
         error: E,
     },
-    #[doc(hidden)]
-    Internal { error: String },
+    /// An internal value-store invariant failed. Counts as a failure.
+    Internal { error: InvariantError },
 }
 
 impl<E> NodeOutcome<E> {

@@ -1,11 +1,7 @@
 use std::collections::HashSet;
 
 use syn::visit::{self, Visit};
-use syn::{
-    Error, Expr, ExprAsync, ExprBinary, ExprBreak, ExprCall, ExprClosure, ExprContinue,
-    ExprForLoop, ExprIf, ExprMacro, ExprMatch, ExprMethodCall, ExprReference, ExprReturn, ExprTry,
-    ExprUnary, ExprWhile, Ident, Macro, Path, Stmt,
-};
+use syn::{Error, Expr, ExprCall, ExprMacro, ExprTry, Ident, Macro, Pat, Path, Stmt};
 
 pub(crate) fn is_step_macro(mac: &Macro) -> bool {
     path_ends_with(&mac.path, "step")
@@ -52,19 +48,37 @@ pub(crate) fn has_try_expr(expr: &Expr) -> bool {
 
 pub(crate) fn validate_ordinary_stmt(
     stmt: &Stmt,
+    step_values: &mut HashSet<String>,
+) -> syn::Result<()> {
+    let mut visitor = ScopedValidator::new(step_values.clone());
+    visitor.visit_stmt(stmt);
+    *step_values = visitor.step_values;
+    visitor.error.map_or(Ok(()), Err)
+}
+
+/// Handles are accepted only as complete, direct operation arguments.
+pub(crate) fn validate_arguments(
+    operation: &Expr,
     step_values: &HashSet<String>,
 ) -> syn::Result<()> {
-    let mut visitor = OrdinaryStmtVisitor {
-        step_values,
-        error: None,
+    let Expr::Call(call) = operation else {
+        unreachable!("step shape was validated")
     };
-    visitor.visit_stmt(stmt);
-
-    if let Some(error) = visitor.error {
-        Err(error)
-    } else {
-        Ok(())
+    let mut visitor = ScopedValidator::new(step_values.clone());
+    visitor.visit_expr(&call.func);
+    for arg in &call.args {
+        if let Expr::Path(path) = arg {
+            if path
+                .path
+                .get_ident()
+                .is_some_and(|ident| step_values.contains(&ident.to_string()))
+            {
+                continue;
+            }
+        }
+        visitor.visit_expr(arg);
     }
+    visitor.error.map_or(Ok(()), Err)
 }
 
 pub(crate) fn validate_final_output(
@@ -171,194 +185,174 @@ impl<'ast> Visit<'ast> for TryExprVisitor {
     }
 }
 
-struct OrdinaryStmtVisitor<'a> {
-    step_values: &'a HashSet<String>,
+struct ScopedValidator {
+    step_values: HashSet<String>,
     error: Option<Error>,
 }
 
-impl OrdinaryStmtVisitor<'_> {
-    fn set_error(&mut self, error: Error) {
-        if self.error.is_none() {
-            self.error = Some(error);
+impl ScopedValidator {
+    fn new(step_values: HashSet<String>) -> Self {
+        Self {
+            step_values,
+            error: None,
         }
     }
-
-    fn contains_step_value(&self, expr: &Expr) -> bool {
-        let mut visitor = StepValueVisitor {
-            step_values: self.step_values,
-            found: false,
-        };
-        visitor.visit_expr(expr);
-        visitor.found
+    fn reject(&mut self, tokens: impl quote::ToTokens, message: &str) {
+        if self.error.is_none() {
+            self.error = Some(Error::new_spanned(tokens, message));
+        }
+    }
+    fn shadow(&mut self, pat: &Pat) {
+        struct Bindings<'a>(&'a mut HashSet<String>);
+        impl<'ast> Visit<'ast> for Bindings<'_> {
+            fn visit_pat_ident(&mut self, pat: &'ast syn::PatIdent) {
+                self.0.remove(&pat.ident.to_string());
+                visit::visit_pat_ident(self, pat);
+            }
+        }
+        Bindings(&mut self.step_values).visit_pat(pat);
+    }
+    fn condition_bindings(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Let(expr) => self.shadow(&expr.pat),
+            Expr::Binary(expr) if matches!(expr.op, syn::BinOp::And(_)) => {
+                self.condition_bindings(&expr.left);
+                self.condition_bindings(&expr.right);
+            }
+            _ => {}
+        }
     }
 }
 
-impl<'ast> Visit<'ast> for OrdinaryStmtVisitor<'_> {
-    fn visit_expr_macro(&mut self, node: &'ast ExprMacro) {
-        if is_step_macro(&node.mac) {
-            self.set_error(Error::new_spanned(
+impl<'ast> Visit<'ast> for ScopedValidator {
+    fn visit_item(&mut self, node: &'ast syn::Item) {
+        // Ordinary items cannot capture the pipeline's local bindings. Macro
+        // definitions can refer to them textually, so inspect those tokens.
+        if let syn::Item::Macro(item) = node {
+            self.visit_macro(&item.mac);
+        }
+    }
+
+    fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
+        if node
+            .path
+            .get_ident()
+            .is_some_and(|id| self.step_values.contains(&id.to_string()))
+        {
+            self.reject(
+                node,
+                "values produced by `step!` may only be direct step arguments or the final output",
+            );
+        }
+        visit::visit_expr_path(self, node);
+    }
+
+    fn visit_local(&mut self, node: &'ast syn::Local) {
+        if let Some(init) = &node.init {
+            self.visit_expr(&init.expr);
+            if let Some((_, diverge)) = &init.diverge {
+                self.visit_expr(diverge);
+            }
+        }
+        self.shadow(&node.pat);
+    }
+
+    fn visit_block(&mut self, node: &'ast syn::Block) {
+        let outer = self.step_values.clone();
+        visit::visit_block(self, node);
+        self.step_values = outer;
+    }
+
+    fn visit_expr_closure(&mut self, node: &'ast syn::ExprClosure) {
+        let outer = self.step_values.clone();
+        for pat in &node.inputs {
+            self.shadow(pat);
+        }
+        self.visit_expr(&node.body);
+        self.step_values = outer;
+    }
+
+    fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
+        self.visit_expr(&node.expr);
+        let outer = self.step_values.clone();
+        self.shadow(&node.pat);
+        self.visit_block(&node.body);
+        self.step_values = outer;
+    }
+
+    fn visit_arm(&mut self, node: &'ast syn::Arm) {
+        let outer = self.step_values.clone();
+        self.shadow(&node.pat);
+        if let Some((_, guard)) = &node.guard {
+            self.visit_expr(guard);
+        }
+        self.visit_expr(&node.body);
+        self.step_values = outer;
+    }
+
+    fn visit_expr_if(&mut self, node: &'ast syn::ExprIf) {
+        self.visit_expr(&node.cond);
+        let outer = self.step_values.clone();
+        self.condition_bindings(&node.cond);
+        self.visit_block(&node.then_branch);
+        self.step_values = outer;
+        if let Some((_, branch)) = &node.else_branch {
+            self.visit_expr(branch);
+        }
+    }
+
+    fn visit_expr_while(&mut self, node: &'ast syn::ExprWhile) {
+        self.visit_expr(&node.cond);
+        let outer = self.step_values.clone();
+        self.condition_bindings(&node.cond);
+        self.visit_block(&node.body);
+        self.step_values = outer;
+    }
+
+    fn visit_macro(&mut self, node: &'ast Macro) {
+        if is_step_macro(node) {
+            self.reject(
                 node,
                 "`step!` is only supported as a top-level pipeline statement",
-            ));
-            return;
+            );
+        } else if tokens_reference_handle(node.tokens.clone(), &self.step_values) {
+            self.reject(
+                node,
+                "values produced by `step!` cannot be used inside opaque macro arguments",
+            );
         }
-        visit::visit_expr_macro(self, node);
     }
 
     fn visit_expr_try(&mut self, node: &'ast ExprTry) {
-        self.set_error(Error::new_spanned(
-            node,
-            "`?` is only supported immediately after `step!(...)`",
-        ));
+        self.reject(node, "`?` is only supported immediately after `step!(...)`");
     }
-
-    fn visit_expr_closure(&mut self, node: &'ast ExprClosure) {
-        if has_step_macro(&node.body) {
-            self.set_error(Error::new_spanned(
-                node,
-                "`step!` inside closures is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_closure(self, node);
-    }
-
-    fn visit_expr_async(&mut self, node: &'ast ExprAsync) {
-        let mut visitor = StepMacroVisitor { found: false };
-        visitor.visit_block(&node.block);
-        if visitor.found {
-            self.set_error(Error::new_spanned(
-                node,
-                "`step!` inside async blocks is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_async(self, node);
-    }
-
-    fn visit_expr_if(&mut self, node: &'ast ExprIf) {
-        if self.contains_step_value(&node.cond) {
-            self.set_error(Error::new_spanned(
-                &node.cond,
-                "branching on a value produced by `step!` is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_if(self, node);
-    }
-
-    fn visit_expr_match(&mut self, node: &'ast ExprMatch) {
-        if self.contains_step_value(&node.expr) {
-            self.set_error(Error::new_spanned(
-                &node.expr,
-                "matching on a value produced by `step!` is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_match(self, node);
-    }
-
-    fn visit_expr_for_loop(&mut self, node: &'ast ExprForLoop) {
-        if self.contains_step_value(&node.expr) {
-            self.set_error(Error::new_spanned(
-                &node.expr,
-                "looping over a value produced by `step!` is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_for_loop(self, node);
-    }
-
-    fn visit_expr_while(&mut self, node: &'ast ExprWhile) {
-        if self.contains_step_value(&node.cond) {
-            self.set_error(Error::new_spanned(
-                &node.cond,
-                "looping over a value produced by `step!` is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_while(self, node);
-    }
-
-    fn visit_expr_reference(&mut self, node: &'ast ExprReference) {
-        if self.contains_step_value(&node.expr) {
-            self.set_error(Error::new_spanned(
-                node,
-                "borrowing a value produced by `step!` across pipeline steps is not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_reference(self, node);
-    }
-
-    fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
-        if self.contains_step_value(&node.receiver)
-            || node.args.iter().any(|arg| self.contains_step_value(arg))
-        {
-            self.set_error(Error::new_spanned(
-                node,
-                "method calls on values produced by `step!` are not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_method_call(self, node);
-    }
-
-    fn visit_expr_binary(&mut self, node: &'ast ExprBinary) {
-        if self.contains_step_value(&node.left) || self.contains_step_value(&node.right) {
-            self.set_error(Error::new_spanned(
-                node,
-                "operators on values produced by `step!` are not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_binary(self, node);
-    }
-
-    fn visit_expr_unary(&mut self, node: &'ast ExprUnary) {
-        if self.contains_step_value(&node.expr) {
-            self.set_error(Error::new_spanned(
-                node,
-                "operators on values produced by `step!` are not supported",
-            ));
-            return;
-        }
-        visit::visit_expr_unary(self, node);
-    }
-
-    fn visit_expr_return(&mut self, node: &'ast ExprReturn) {
-        self.set_error(Error::new_spanned(
+    fn visit_expr_return(&mut self, node: &'ast syn::ExprReturn) {
+        self.reject(
             node,
             "`return` is not supported inside `#[pipeline]` bodies",
-        ));
+        );
     }
-
-    fn visit_expr_break(&mut self, node: &'ast ExprBreak) {
-        self.set_error(Error::new_spanned(
-            node,
-            "`break` is not supported inside `#[pipeline]` bodies",
-        ));
+    fn visit_expr_break(&mut self, node: &'ast syn::ExprBreak) {
+        self.reject(node, "`break` is not supported inside `#[pipeline]` bodies");
     }
-
-    fn visit_expr_continue(&mut self, node: &'ast ExprContinue) {
-        self.set_error(Error::new_spanned(
+    fn visit_expr_continue(&mut self, node: &'ast syn::ExprContinue) {
+        self.reject(
             node,
             "`continue` is not supported inside `#[pipeline]` bodies",
-        ));
+        );
     }
 }
 
-struct StepValueVisitor<'a> {
-    step_values: &'a HashSet<String>,
-    found: bool,
-}
-
-impl<'ast> Visit<'ast> for StepValueVisitor<'_> {
-    fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
-        if let Some(ident) = node.path.get_ident() {
-            if self.step_values.contains(&ident.to_string()) {
-                self.found = true;
-            }
-        }
-    }
+fn tokens_reference_handle(tokens: proc_macro2::TokenStream, handles: &HashSet<String>) -> bool {
+    tokens.into_iter().any(|token| match token {
+        proc_macro2::TokenTree::Ident(id) => handles.contains(&id.to_string()),
+        proc_macro2::TokenTree::Group(group) => tokens_reference_handle(group.stream(), handles),
+        // Also reject implicit format captures, conservatively treating words in
+        // literals as potential references. We do not expand arbitrary macros.
+        proc_macro2::TokenTree::Literal(literal) => literal
+            .to_string()
+            .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
+            .any(|word| handles.contains(word)),
+        proc_macro2::TokenTree::Punct(_) => false,
+    })
 }

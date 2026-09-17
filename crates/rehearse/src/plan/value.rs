@@ -1,6 +1,9 @@
-use super::store::{ResolveInputError, ValueStore};
+use super::store::ValueStore;
+use crate::ValueError;
+use std::any::{type_name, TypeId};
 use std::fmt;
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Stable identifier for a node in one plan.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -30,12 +33,36 @@ impl fmt::Display for NodeId {
     }
 }
 
+// Identities are never recycled, including after a builder is dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct PlanId(usize);
+
+impl PlanId {
+    pub(crate) fn new() -> Self {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        Self(
+            NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .expect("plan identity space exhausted"),
+        )
+    }
+}
+
+// Public only inside this private module, for the sealed input trait.
+#[derive(Debug, Clone, Copy)]
+pub struct Dependency {
+    pub(crate) owner: PlanId,
+    pub(crate) node: NodeId,
+    pub(crate) type_id: TypeId,
+    pub(crate) type_name: &'static str,
+}
+
 /// Typed handle to a value produced by a plan node.
 ///
 /// `Value<T>` is copyable regardless of `T`; it stores only the producing node
-/// id and a type marker.
+/// id, private plan identity, and a type marker.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Value<T> {
+    pub(crate) owner: PlanId,
     node: NodeId,
     _marker: PhantomData<fn() -> T>,
 }
@@ -49,8 +76,9 @@ impl<T> Clone for Value<T> {
 }
 
 impl<T> Value<T> {
-    pub(crate) fn new(node: NodeId) -> Self {
+    pub(crate) fn new(owner: PlanId, node: NodeId) -> Self {
         Self {
+            owner,
             node,
             _marker: PhantomData,
         }
@@ -59,6 +87,17 @@ impl<T> Value<T> {
     /// Returns the producing node id.
     pub fn node(self) -> NodeId {
         self.node
+    }
+}
+
+impl<T: 'static> Value<T> {
+    pub(crate) fn dependency(self) -> Dependency {
+        Dependency {
+            owner: self.owner,
+            node: self.node,
+            type_id: TypeId::of::<T>(),
+            type_name: type_name::<T>(),
+        }
     }
 }
 
@@ -107,54 +146,52 @@ impl<T> IntoInput<T> for T {
     }
 }
 
-/// Internal input tuple abstraction used by [`Operation`](crate::Operation).
+/// Supported input shapes for [`Operation`](crate::Operation).
 ///
-/// Implemented for `()`, one [`Input`], and tuples of up to eight inputs.
-pub trait OperationInputs: Send + Sync + 'static {
+/// This trait is sealed. Implemented for `()`, one [`Input`], and tuples of
+/// two to eight inputs. Custom implementations are not supported.
+pub trait OperationInputs: sealed::Resolve<Self::Resolved> + Send + Sync + 'static {
     /// Resolved value shape passed to an operation executor.
     type Resolved: Send + 'static;
-
-    #[doc(hidden)]
-    fn dependencies(&self) -> Vec<NodeId>;
-
-    #[doc(hidden)]
-    fn missing_dependencies(&self, store: &ValueStore) -> Vec<NodeId> {
-        self.dependencies()
-            .into_iter()
-            .filter(|dependency| !store.contains(*dependency))
-            .collect()
-    }
-
-    #[doc(hidden)]
-    fn resolve(&self, store: &ValueStore) -> Result<Self::Resolved, ResolveInputError>;
 }
+
+pub(crate) mod sealed {
+    use super::{Dependency, ValueError, ValueStore};
+
+    pub trait Resolve<R> {
+        fn references(&self) -> Vec<Dependency>;
+        fn resolve(&self, store: &ValueStore) -> Result<R, ValueError>;
+    }
+}
+
+use sealed::Resolve;
 
 impl OperationInputs for () {
     type Resolved = ();
+}
 
-    fn dependencies(&self) -> Vec<NodeId> {
+impl Resolve<()> for () {
+    fn references(&self) -> Vec<Dependency> {
         Vec::new()
     }
-
-    fn resolve(&self, _store: &ValueStore) -> Result<Self::Resolved, ResolveInputError> {
+    fn resolve(&self, _store: &ValueStore) -> Result<(), ValueError> {
         Ok(())
     }
 }
 
-impl<T> OperationInputs for Input<T>
-where
-    T: Clone + Send + Sync + 'static,
-{
+impl<T: Clone + Send + Sync + 'static> OperationInputs for Input<T> {
     type Resolved = T;
+}
 
-    fn dependencies(&self) -> Vec<NodeId> {
+impl<T: Clone + Send + Sync + 'static> Resolve<T> for Input<T> {
+    fn references(&self) -> Vec<Dependency> {
         match self {
             Self::Literal(_) => Vec::new(),
-            Self::Value(value) => vec![value.node()],
+            Self::Value(value) => vec![value.dependency()],
         }
     }
 
-    fn resolve(&self, store: &ValueStore) -> Result<Self::Resolved, ResolveInputError> {
+    fn resolve(&self, store: &ValueStore) -> Result<T, ValueError> {
         match self {
             Self::Literal(value) => Ok(value.clone()),
             Self::Value(value) => store.require(*value),
@@ -164,26 +201,19 @@ where
 
 macro_rules! impl_operation_inputs_tuple {
     ($($name:ident $index:tt),+ $(,)?) => {
-        impl<$($name),+> OperationInputs for ($(Input<$name>,)+)
-        where
-            $($name: Clone + Send + Sync + 'static,)+
-        {
+        impl<$($name: Clone + Send + Sync + 'static),+> OperationInputs for ($(Input<$name>,)+) {
             type Resolved = ($($name,)+);
+        }
 
-            fn dependencies(&self) -> Vec<NodeId> {
+        impl<$($name: Clone + Send + Sync + 'static),+> Resolve<($($name,)+)> for ($(Input<$name>,)+) {
+            fn references(&self) -> Vec<Dependency> {
                 let mut dependencies = Vec::new();
-                $(
-                    dependencies.extend(self.$index.dependencies());
-                )+
+                $(dependencies.extend(self.$index.references());)+
                 dependencies
             }
 
-            fn resolve(&self, store: &ValueStore) -> Result<Self::Resolved, ResolveInputError> {
-                Ok((
-                    $(
-                        self.$index.resolve(store)?,
-                    )+
-                ))
+            fn resolve(&self, store: &ValueStore) -> Result<($($name,)+), ValueError> {
+                Ok(($(self.$index.resolve(store)?,)+))
             }
         }
     };

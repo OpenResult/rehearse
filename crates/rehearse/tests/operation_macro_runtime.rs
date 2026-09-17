@@ -1,3 +1,5 @@
+#![cfg(feature = "macros")]
+
 use rehearse::{operation, DryRunAction, Impact, Input, NodeOutcome, PlanBuilder};
 use std::fmt;
 use std::sync::{Arc, Mutex};

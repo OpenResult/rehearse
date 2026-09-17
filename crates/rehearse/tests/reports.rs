@@ -1,9 +1,7 @@
 mod common;
 
 use common::{fail0, op0, panic1, TestContext, TestError};
-use rehearse::{
-    DryRunStatus, Impact, Input, NodeOutcome, Operation, OperationMetadata, PlanBuilder,
-};
+use rehearse::{DryRunStatus, Impact, Input, NodeOutcome, PlanBuilder};
 
 #[tokio::test]
 async fn every_node_has_one_outcome_and_retains_metadata() {
@@ -142,6 +140,7 @@ Dry-run incomplete: 0 executed, 1 skipped, 0 denied, 1 blocked, 0 failed."
 #[cfg(feature = "serde")]
 #[tokio::test]
 async fn reports_serialize_to_json() {
+    use rehearse::{Operation, OperationMetadata};
     let mut builder = PlanBuilder::<(), String>::new("json-report");
     let read = builder.add(Operation::sync(
         OperationMetadata::new("read", Impact::Read),
