@@ -17,6 +17,7 @@ fn build(__rehearse_builder: u32) -> Plan<(), u32, ()> {
     let _closure = |value: u32| value + 1;
     for value in [1, 2] { let _ = value + 1; }
     let _matched = match Some(3) { Some(value) => value + 1, None => 0 };
+    let _guarded = match Some(3) { Some(value) if value > 0 => value + 1, _ => 0 };
     if let Some(value) = Some(3) { let _ = value + 1; }
     let value = step!(seed(value))?;
     step!(seed(value))?;

@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## 0.4.0 - 2026-11-21
+
+- Update direct and transitive dependencies, including Tokio, Clap, serde_json,
+  and Trybuild.
+- Upgrade the macro parser to Syn 3 while preserving match-guard scope and
+  step-value validation, with additional compile-pass/fail regression coverage.
+- Preserve the public API and Rust 1.85 library minimum supported version.
+
 ## 0.3.0 - 2026-09-17
 
 - Validate builder ownership, producer order, and output types before returning

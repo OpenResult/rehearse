@@ -29,7 +29,7 @@ Add rehearse to your project:
 
 ```toml
 [dependencies]
-rehearse = "0.3.0"
+rehearse = "0.4.0"
 ```
 
 For local checkout development, use `rehearse = { path = "crates/rehearse" }`.
@@ -42,7 +42,7 @@ types with:
 
 ```toml
 [dependencies]
-rehearse = { version = "0.3.0", features = ["serde"] }
+rehearse = { version = "0.4.0", features = ["serde"] }
 ```
 
 Rust 1.85 or newer is supported. See [MIGRATION.md](MIGRATION.md) for the 0.3 API changes.
@@ -139,7 +139,7 @@ git-backed Cargo registry index and local `.crate` downloads, then builds consum
 The all-feature consumer uses:
 
 ```toml
-rehearse = { version = "0.3.0", registry = "rehearse-local", features = ["serde"] }
+rehearse = { version = "0.4.0", registry = "rehearse-local", features = ["serde"] }
 ```
 
 Expected final output includes the generated `.crate` paths and:

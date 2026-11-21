@@ -17,7 +17,7 @@ macros = ["dep:rehearse-macros"]
 serde = ["dep:serde"]
 
 [dependencies]
-rehearse-macros = { version = "0.3.0", path = "../rehearse-macros", optional = true }
+rehearse-macros = { version = "0.4.0", path = "../rehearse-macros", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]

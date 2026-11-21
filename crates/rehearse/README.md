@@ -17,7 +17,7 @@ arbitrary Rust code mutates state.
 
 ```toml
 [dependencies]
-rehearse = "0.3.0"
+rehearse = "0.4.0"
 ```
 
 The `macros` feature is enabled by default and re-exports the `#[operation]`,
@@ -28,7 +28,7 @@ types with:
 
 ```toml
 [dependencies]
-rehearse = { version = "0.3.0", features = ["serde"] }
+rehearse = { version = "0.4.0", features = ["serde"] }
 ```
 
 Rust 1.85 or newer is supported. In 0.3, `Value<T>` belongs to one builder;

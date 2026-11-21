@@ -282,9 +282,11 @@ impl<'ast> Visit<'ast> for ScopedValidator {
 
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
         let outer = self.step_values.clone();
-        self.shadow(&node.pat);
-        if let Some((_, guard)) = &node.guard {
-            self.visit_expr(guard);
+        if let Pat::Guard(pat) = &node.pat {
+            self.shadow(&pat.pat);
+            self.visit_expr(&pat.guard);
+        } else {
+            self.shadow(&node.pat);
         }
         self.visit_expr(&node.body);
         self.step_values = outer;

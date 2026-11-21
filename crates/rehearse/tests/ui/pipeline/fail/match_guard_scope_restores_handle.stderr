@@ -1,0 +1,13 @@
+error: values produced by `step!` may only be direct step arguments or the final output
+  --> tests/ui/pipeline/fail/match_guard_scope_restores_handle.rs:13:26
+   |
+13 |             let _alias = value;
+   |                          ^^^^^
+
+warning: unused import: `Plan`
+ --> tests/ui/pipeline/fail/match_guard_scope_restores_handle.rs:1:37
+  |
+1 | use rehearse::{operation, pipeline, Plan};
+  |                                     ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
