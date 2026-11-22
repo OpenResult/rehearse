@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Add the reusable, initially non-published `rehearse-github` reporting adapter
+  with live Actions notices/errors, timing and outcome summaries, canonical graph
+  JSON, event JSONL, and final reports, including never-started operations.
+- Add opt-in CLI reporting and a manual-only Workflow Example E2E workflow for
+  Rust and Spring Boot fixtures, with selectable scenarios and retained reports.
+- Add canonical `describe_graph()` metadata with versioned JSON, explicit
+  sequence/fork/join structure, application revisions, annotations, and structural
+  Mermaid rendering while preserving existing table descriptions.
+- Add manual bounded parallel groups and opt-in concurrent execute/dry-run
+  interpreters. Preserve sequential defaults; stop new launches and drain active
+  operations after execute failure, retaining structured outcomes.
+- Replace the office filing CLI with `rehearse-workflow-example`, a local CI/CD
+  fixture lab for Rust and Spring Boot services with CI, release, promotion,
+  audit, and maintenance plans.
+- Demonstrate all six impacts, custom dry-run policy, strict completeness,
+  controlled failures, progress, Mermaid, and structured JSON output without
+  requiring external build tools or services.
+
+- Add the local `rehearse-workflow-server` browser example with owned SSE
+  progress events, reconnect snapshots, typed production approval, rejection,
+  expiry, cancellation, and isolated Rust/Spring Boot fixture environments.
+- Draw its canonical graph before execution, run independent dev/staging lanes,
+  and require both verifications before asking for production approval.
+
 ## 0.4.0 - 2026-11-21
 
 - Update direct and transitive dependencies, including Tokio, Clap, serde_json,

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Run local rehearse CI/CD fixtures, watch live progress, and approve production deployment.">
+  <title>rehearse · Workflow lab</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="rehearse workflow lab home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 7h8v8H5zm14 0h8v8h-8zM5 21h8v4H5z" fill="currentColor"/><path d="M23 15v8H13" fill="none" stroke="currentColor" stroke-width="3"/></svg>
+      <span>rehearse<span class="brand-subtitle">WORKFLOW LAB</span></span>
+    </a>
+    <div class="sidebar-section-title">
+      <h2>Runs <span id="run-count" class="run-count">0</span></h2>
+      <button id="refresh-runs" class="icon-button on-dark" type="button" aria-label="Refresh runs" title="Refresh runs">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 18 17"/></svg>
+      </button>
+    </div>
+    <nav class="runs-nav" aria-label="Fixture runs">
+      <p id="runs-empty" class="sidebar-empty">Your runs will appear here.<br>Start with a dry-run or an executed fixture release.</p>
+      <ol id="run-list" class="run-list"></ol>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="local-badge"><span aria-hidden="true">⌘</span> Local fixtures</div>
+      <p>Runs continue when this tab disconnects. Run history and approvals live in server memory and clear on restart.</p>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">CI/CD, one deliberate step at a time</p>
+        <h1>Release control room</h1>
+        <p class="page-description">Inspect the described plan, watch independent branches run, then decide when production can proceed.</p>
+      </div>
+      <div class="connection-controls">
+        <span id="connection-status" class="connection-status" data-state="idle"><span class="connection-dot" aria-hidden="true"></span><span id="connection-label">Connecting to server</span></span>
+        <button id="toggle-stream" class="button button-small button-quiet" type="button" disabled>Disconnect live view</button>
+      </div>
+    </header>
+
+    <div id="error-banner" class="error-banner" role="alert" hidden>
+      <p id="error-message"></p>
+      <button id="dismiss-error" class="icon-button" type="button" aria-label="Dismiss message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+
+    <section class="launcher card" aria-labelledby="launcher-title">
+      <div class="section-heading launcher-heading">
+        <div><h2 id="launcher-title">Start a fixture run</h2><p>Rust or Spring Boot. Local JSON artifacts, deployments, and gateway routes.</p></div>
+        <span class="scope-tag">No external deployment</span>
+      </div>
+      <form id="launch-form">
+        <div class="launch-fields">
+          <div class="form-field"><label for="stack">Service stack</label><div class="select-shell"><select id="stack" name="stack"><option value="rust">Rust service</option><option value="spring-boot">Java · Spring Boot</option></select></div></div>
+          <fieldset class="form-field mode-field"><legend>Interpretation</legend><div class="segmented-control"><label><input type="radio" name="mode" value="execute" checked><span>Execute fixtures</span></label><label><input type="radio" name="mode" value="dry-run"><span>Dry-run</span></label></div></fieldset>
+          <div class="form-field"><label for="fail-at">Failure exercise</label><div class="select-shell"><select id="fail-at" name="fail_at"><option value="">No injected failure</option><option value="build">Fail build</option><option value="test">Fail tests</option><option value="verify-dev">Fail dev verification</option><option value="verify-staging">Fail staging verification</option><option value="verify-production">Fail production verification</option></select></div></div>
+          <button id="start-run" class="button button-primary start-button" type="submit">Start fixture release</button>
+        </div>
+      </form>
+      <p id="mode-hint" class="mode-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/><path d="m8 12 3 3 5-6"/></svg>Execute writes to an isolated fixture workspace and waits for your production decision.</p>
+    </section>
+
+    <section class="run-overview" aria-labelledby="run-title">
+      <div class="run-heading">
+        <div><div class="run-title-row"><h2 id="run-title">Release plan</h2><span id="run-status" class="status-badge" data-status="pending">Ready to start</span></div><p id="run-subtitle" class="run-subtitle">Preview the workflow and its parallel branches, or select an existing run.</p></div>
+        <div class="run-actions"><span id="step-count" class="step-count"></span><button id="cancel-run" class="button button-small button-danger-quiet" type="button" hidden>Cancel run</button></div>
+      </div>
+      <ol id="phase-strip" class="phase-strip" aria-label="Release phases"></ol>
+    </section>
+
+    <div class="workspace-grid">
+      <div class="timeline-column">
+        <section class="card timeline-card" aria-labelledby="timeline-title">
+          <div class="section-heading"><div><h2 id="timeline-title">Execution timeline</h2><p id="timeline-description">Declared control order, parallel branches, and operation impacts.</p></div><a href="/api/plan" target="_blank" rel="noopener" class="describe-link" aria-label="Open canonical Describe JSON"><span id="plan-kind" class="subtle-label">Describe JSON</span></a></div>
+          <ol id="node-list" class="node-list" aria-label="Plan operations"><li class="loading-message">Loading the release plan…</li></ol>
+        </section>
+        <section class="card activity-card" aria-labelledby="activity-title">
+          <div class="section-heading"><div><h2 id="activity-title">Live activity</h2><p>Server events, in sequence.</p></div><span id="event-count" class="subtle-label">0 events</span></div>
+          <p id="activity-empty" class="empty-message">Progress will appear here after a run starts.</p>
+          <ol id="activity-list" class="activity-list" aria-label="Run event history" tabindex="0"></ol>
+        </section>
+      </div>
+
+      <aside class="inspector-column" aria-label="Run controls and details">
+        <section id="approval-card" class="card approval-card" aria-labelledby="approval-title" data-status="idle">
+          <div class="approval-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/><path d="M12 8v5m0 3h.01"/></svg></div>
+          <div class="approval-title-row"><h2 id="approval-title">Production approval</h2><span id="approval-status" class="status-badge" data-status="pending">Decision gate</span></div>
+          <p id="approval-question" class="approval-question">Production waits until dev and staging have been deployed and verified.</p>
+          <div id="approval-details" hidden>
+            <dl class="approval-metadata"><div><dt>Target</dt><dd id="approval-target"></dd></div><div><dt>Revision</dt><dd><code id="approval-revision"></code></dd></div><div class="digest-field"><dt>Artifact digest</dt><dd><code id="approval-digest"></code></dd></div></dl>
+            <p id="approval-countdown" class="approval-countdown" aria-live="off"></p>
+          </div>
+          <div id="approval-buttons" class="approval-buttons" hidden><button id="approve-run" class="button button-approve" type="button">Approve production</button><button id="reject-run" class="button button-reject" type="button">Reject release</button></div>
+          <p id="approval-note" class="approval-note">The decision is bound to this run, revision, and artifact. No production permit is created by a dry-run.</p>
+        </section>
+
+        <section class="card details-card" aria-labelledby="details-title">
+          <div class="section-heading"><h2 id="details-title">Run details</h2></div>
+          <dl class="run-details"><div><dt>Run ID</dt><dd><code id="detail-id">—</code></dd></div><div><dt>Plan revision</dt><dd><code id="detail-plan-revision">—</code></dd></div><div><dt>Stack</dt><dd id="detail-stack">—</dd></div><div><dt>Interpretation</dt><dd id="detail-mode">—</dd></div><div><dt>Created</dt><dd id="detail-created">—</dd></div><div><dt>Workspace</dt><dd><code id="detail-workspace">Each executed run gets its own fixture files.</code></dd></div></dl>
+          <p class="details-footnote">Approvals and run state are in memory. Fixture files already written remain after rejection, failure, cancellation, or restart.</p>
+        </section>
+
+        <section id="result-card" class="card result-card" aria-labelledby="result-title" hidden><div class="section-heading"><h2 id="result-title">Run result</h2></div><p id="result-message"></p></section>
+      </aside>
+    </div>
+    <footer class="page-footer"><span>rehearse · explicit impact, visible decisions</span><span>Fixture backend · no Cargo, Maven, or Java processes</span></footer>
+  </main>
+  <div id="status-announcement" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

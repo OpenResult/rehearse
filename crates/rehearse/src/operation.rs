@@ -2,6 +2,7 @@ use crate::plan::store::ValueStore;
 use crate::plan::value::Dependency;
 use crate::ValueError;
 use crate::{Impact, NodeId, OperationInputs};
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -15,6 +16,11 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub struct OperationMetadata {
     name: String,
     impact: Impact,
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "BTreeMap::is_empty")
+    )]
+    annotations: BTreeMap<String, String>,
 }
 
 impl OperationMetadata {
@@ -23,7 +29,19 @@ impl OperationMetadata {
         Self {
             name: name.into(),
             impact,
+            annotations: BTreeMap::new(),
         }
+    }
+
+    /// Adds application-owned static presentation metadata.
+    pub fn with_annotation(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.annotations.insert(key.into(), value.into());
+        self
+    }
+
+    /// Returns application-owned annotations without inspecting inputs or bodies.
+    pub fn annotations(&self) -> &BTreeMap<String, String> {
+        &self.annotations
     }
 
     /// Returns the operation name used in descriptions, reports, and errors.
@@ -49,9 +67,8 @@ pub struct Operation<C, T, E> {
     runner: Box<ErasedRunner<C, T, E>>,
 }
 
-type ErasedRunner<C, T, E> = dyn for<'a> Fn(&'a C, &'a ValueStore) -> BoxFuture<'a, Result<T, NodeRunError<E>>>
-    + Send
-    + Sync;
+type ErasedRunner<C, T, E> =
+    dyn for<'a> Fn(&'a C, &ValueStore) -> BoxFuture<'a, Result<T, NodeRunError<E>>> + Send + Sync;
 
 impl<C, T, E> Operation<C, T, E>
 where
@@ -109,6 +126,12 @@ where
         })
     }
 
+    /// Adds application-owned static presentation metadata.
+    pub fn with_annotation(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata = self.metadata.with_annotation(key, value);
+        self
+    }
+
     /// Returns this operation's static metadata.
     pub fn metadata(&self) -> &OperationMetadata {
         &self.metadata
@@ -122,7 +145,7 @@ where
     pub(crate) fn run<'a>(
         &'a self,
         context: &'a C,
-        store: &'a ValueStore,
+        store: &ValueStore,
     ) -> BoxFuture<'a, Result<T, NodeRunError<E>>> {
         (self.runner)(context, store)
     }

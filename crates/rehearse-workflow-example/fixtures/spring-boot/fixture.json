@@ -1,0 +1,5 @@
+{
+  "build_command": "mvn -B package -DskipTests",
+  "test_command": "mvn -B test",
+  "expected_health": "UP"
+}

@@ -1,0 +1,58 @@
+name: Workflow Example E2E
+
+"on":
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: Fixture service stack
+        type: choice
+        default: all
+        options:
+          - all
+          - rust
+          - spring-boot
+      scenario:
+        description: CLI scenario; suite runs all three
+        type: choice
+        default: suite
+        options:
+          - suite
+          - dry-run
+          - release
+          - failure
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    name: CLI / ${{ matrix.stack }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(inputs.stack == 'all' && '["rust","spring-boot"]' || format('["{0}"]', inputs.stack)) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Build the fixture CLI
+        run: cargo build -p rehearse-workflow-example --bin rehearse-workflow-example --locked
+      - name: Exercise the CLI and GitHub reporting
+        env:
+          E2E_STACK: ${{ matrix.stack }}
+          E2E_SCENARIO: ${{ inputs.scenario }}
+        run: python3 scripts/workflow_e2e.py --stack "$E2E_STACK" --scenario "$E2E_SCENARIO"
+      - name: Upload reports and fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workflow-example-${{ matrix.stack }}-${{ inputs.scenario }}-${{ github.run_attempt }}
+          path: target/workflow-e2e/
+          if-no-files-found: warn
+          retention-days: 14

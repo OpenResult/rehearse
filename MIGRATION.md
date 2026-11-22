@@ -1,3 +1,35 @@
+# Unreleased graph and concurrency additions
+
+The new, initially non-published `rehearse-github` workspace crate is an optional
+consumer of the existing progress API; the runtime does not depend on it. The
+workflow CLI opts in with `--github-report DIR`. Choose a fresh report directory
+outside the fixture lab. Its live notices use stderr so `--json` stdout remains
+machine-readable. Reporting adds graph, event, report, and summary files without
+changing plan execution or dry-run policy. The manual-only E2E workflow and its
+local Python driver use the same fixture CLI.
+
+Existing `execute`, `dry_run`, table description JSON, and pipeline macros keep
+their sequential behavior. Manual builders may declare bounded parallel groups;
+select `execute_concurrent` or `dry_run_concurrent` explicitly to honor them.
+Concurrent execute returns `ConcurrentExecuteError<E>` with all drained errors,
+successful node IDs, and never-started IDs, rather than `ExecuteError<E>`.
+
+`describe_graph()` is an additive versioned metadata DTO. Prefer it for new web
+clients; value dependencies alone do not describe control order. Supply
+`with_revision` and static operation annotations where the client needs plan
+identity and display hints. Existing empty annotation metadata serializes as
+before. Executable plans and literal values remain unserialized.
+
+`PlanBuildError` adds empty-group, empty-branch, cross-branch-dependency, and
+invalid-execution-structure variants. Existing external matches should already
+use a fallback arm because the enum is non-exhaustive.
+
+The non-published workflow CLI now emits the canonical graph for
+`--describe --json` (or `--describe --format json`); report JSON is unchanged. The local server's
+`GET /api/plan` and run `graph` use that same DTO. Run `nodes` now contains only
+status overlays, matched to graph nodes by ID, and snapshots/events include a
+plan revision. Update prototype browser/API consumers together.
+
 # Migrating from 0.2 to 0.3
 
 0.3 preserves ordered execution, policy-before-dependency dry-run behavior,

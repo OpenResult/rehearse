@@ -1,9 +1,11 @@
 mod builder;
 pub(crate) mod node;
 pub(crate) mod store;
+mod structure;
 pub(crate) mod value;
 
-pub use builder::PlanBuilder;
+pub use builder::{BranchBuilder, ParallelBuilder, PlanBuilder};
+pub use structure::{ExecutionStep, ParallelBranch, ParallelGroup};
 pub use value::{Input, IntoInput, NodeId, OperationInputs, Value};
 
 use crate::runner;
@@ -22,6 +24,8 @@ pub struct Plan<C, T, E> {
     pub(crate) owner: value::PlanId,
     pub(crate) name: String,
     pub(crate) nodes: Vec<Box<dyn ErasedNode<C, E>>>,
+    pub(crate) execution: Vec<ExecutionStep>,
+    pub(crate) revision: Option<String>,
     pub(crate) output: Value<T>,
     pub(crate) _marker: PhantomData<fn() -> (C, E)>,
 }
@@ -35,6 +39,16 @@ where
     /// Returns the plan name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns declared ordered steps and explicit parallel regions.
+    pub fn execution(&self) -> &[ExecutionStep] {
+        &self.execution
+    }
+
+    /// Returns the application-declared code/configuration revision.
+    pub fn revision(&self) -> Option<&str> {
+        self.revision.as_deref()
     }
 
     /// Returns the number of nodes in the plan.
@@ -59,6 +73,7 @@ where
             name: node.metadata().name(),
             impact: node.metadata().impact(),
             dependencies: node.dependencies(),
+            annotations: node.metadata().annotations(),
         })
     }
 
@@ -96,6 +111,11 @@ where
         }
 
         output
+    }
+
+    /// Returns canonical static graph metadata without accessing context or values.
+    pub fn describe_graph(&self) -> crate::PlanGraphDescription {
+        crate::graph::describe_graph(self)
     }
 
     /// Describes the plan using [`SafeDryRun`].
@@ -164,6 +184,67 @@ where
         runner::execute::execute_with_listener(self, context, listener).await
     }
 
+    /// Executes explicit parallel regions with bounded concurrency. Ordinary
+    /// steps remain ordered. Failures stop launches, then active work is drained.
+    pub async fn execute_concurrent(
+        &self,
+        context: &C,
+    ) -> Result<T, crate::ConcurrentExecuteError<E>> {
+        let mut listener = crate::NoopProgress;
+        self.execute_concurrent_with_listener(context, &mut listener)
+            .await
+    }
+
+    /// Concurrent execution with serialized observations of actual node outcomes.
+    pub async fn execute_concurrent_with_listener<L: ProgressListener<E> + ?Sized>(
+        &self,
+        context: &C,
+        listener: &mut L,
+    ) -> Result<T, crate::ConcurrentExecuteError<E>> {
+        runner::concurrent::execute(self, context, listener).await
+    }
+
+    /// Rehearses declared parallel regions with the default safe policy.
+    pub async fn dry_run_concurrent(&self, context: &C) -> DryRunReport<E> {
+        self.dry_run_concurrent_with_policy(context, &SafeDryRun)
+            .await
+    }
+
+    /// Concurrent rehearsal with a caller-supplied policy.
+    pub async fn dry_run_concurrent_with_policy<P: DryRunPolicy>(
+        &self,
+        context: &C,
+        policy: &P,
+    ) -> DryRunReport<E> {
+        let mut listener = crate::NoopProgress;
+        self.dry_run_concurrent_with_policy_and_listener(context, policy, &mut listener)
+            .await
+    }
+
+    /// Concurrent rehearsal with the safe policy and a progress listener.
+    pub async fn dry_run_concurrent_with_listener<L: ProgressListener<E> + ?Sized>(
+        &self,
+        context: &C,
+        listener: &mut L,
+    ) -> DryRunReport<E> {
+        self.dry_run_concurrent_with_policy_and_listener(context, &SafeDryRun, listener)
+            .await
+    }
+
+    /// Concurrent rehearsal preserves policy-before-dependencies and continues
+    /// independent branches after failures. Reports remain in declaration order.
+    pub async fn dry_run_concurrent_with_policy_and_listener<
+        P: DryRunPolicy,
+        L: ProgressListener<E> + ?Sized,
+    >(
+        &self,
+        context: &C,
+        policy: &P,
+        listener: &mut L,
+    ) -> DryRunReport<E> {
+        runner::concurrent::dry_run(self, context, policy, listener).await
+    }
+
     /// Runs the plan with [`SafeDryRun`].
     pub async fn dry_run(&self, context: &C) -> DryRunReport<E> {
         self.dry_run_with_policy(context, &SafeDryRun).await
@@ -217,6 +298,7 @@ pub struct PlanNode<'a> {
     name: &'a str,
     impact: crate::Impact,
     dependencies: &'a [NodeId],
+    annotations: &'a std::collections::BTreeMap<String, String>,
 }
 
 impl<'a> PlanNode<'a> {
@@ -233,6 +315,11 @@ impl<'a> PlanNode<'a> {
     /// Returns the operation impact.
     pub fn impact(&self) -> crate::Impact {
         self.impact
+    }
+
+    /// Returns application-owned static annotations.
+    pub fn annotations(&self) -> &'a std::collections::BTreeMap<String, String> {
+        self.annotations
     }
 
     /// Returns value dependencies by producer node id.

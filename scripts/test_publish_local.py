@@ -91,7 +91,7 @@ class RegistryTests(unittest.TestCase):
         write_toml(path, data)
         self.assertEqual(tomllib.loads(path.read_text()), data)
 
-    def test_staging_excludes_nonpublished_workspace_example(self):
+    def test_staging_excludes_nonpublished_workspace_members(self):
         root = Path(__file__).resolve().parent.parent
         stage = self.base / "stage"
         stage_workspace(root, stage)
@@ -99,7 +99,8 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(workspace["members"], ["crates/rehearse", "crates/rehearse-macros"])
         self.assertEqual(workspace["package"]["version"],
                          tomllib.loads((root / "Cargo.toml").read_text())["workspace"]["package"]["version"])
-        self.assertFalse((stage / "crates/rehearse-filing-example").exists())
+        self.assertFalse((stage / "crates/rehearse-workflow-example").exists())
+        self.assertFalse((stage / "crates/rehearse-github").exists())
 
 
 if __name__ == "__main__":

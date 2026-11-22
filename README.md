@@ -105,24 +105,77 @@ Calling `release(...)` builds the plan only. `read_version` and `deploy` run
 only through `dry_run` or `execute`, and the default dry-run policy skips the
 write.
 
-## Office Filing Example
+## Local CI/CD Workflow Lab
 
-[`crates/rehearse-filing-example`](crates/rehearse-filing-example) is a standalone
-CLI that sorts an office inbox into invoices, expenses, minutes, reports, and a
-pending-review folder. It demonstrates static descriptions, safe dry-runs,
-independent reads after skipped writes, and real moves without replacing existing
-destination files.
+[`crates/rehearse-workflow-example`](crates/rehearse-workflow-example) is a
+standalone CLI with Rust and Spring Boot fixture workflows. Try the release
+path `build → test → deploy → verify deploy → publish to API gateway`, or choose
+CI, promotion, audit, and maintenance scenarios to explore all declared impacts,
+custom policies, typed dependencies, and failure behavior.
 
 ```bash
-cargo run -p rehearse-filing-example -- --seed-demo
-cargo run -p rehearse-filing-example -- --describe
-cargo run -p rehearse-filing-example                 # dry-run by default
-cargo run -p rehearse-filing-example -- --execute
+cargo run -p rehearse-workflow-example -- --init
+cargo run -p rehearse-workflow-example -- --describe
+cargo run -p rehearse-workflow-example -- --describe --format json
+cargo run -p rehearse-workflow-example                # dry-run by default
+cargo run -p rehearse-workflow-example -- --execute --progress
+cargo run -p rehearse-workflow-example -- --stack spring-boot --execute
 ```
 
-These commands use `target/filing-office`. See the example's
-[README](crates/rehearse-filing-example/README.md) for filing rules and filesystem
-requirements.
+These commands use `target/workflow-lab`. Everything happens in local fixture
+files; Cargo and Maven command labels illustrate where real CI commands would
+go. Java, Maven, Docker, servers, credentials, and cloud accounts are unnecessary.
+See the example's [tutorial](crates/rehearse-workflow-example/README.md) for the
+scenario matrix, JSON/Mermaid output, failure injection, and repeatable exercises.
+
+For a browser view with streamed progress and a production approval gate, run:
+
+```bash
+cargo run -p rehearse-workflow-example --bin rehearse-workflow-server
+```
+
+Open the printed loopback URL, normally `http://127.0.0.1:3000`. The
+[server guide](crates/rehearse-workflow-example/SERVER.md) includes approve,
+reject, timeout, cancel, and reconnect exercises. Runs and approvals stay in
+memory; deployment and gateway effects remain local fixture files.
+
+The checkout's Unreleased server example uses the canonical Describe graph to
+draw independent dev and staging deploy/verify lanes before execution. Both
+branches must verify the same candidate before the production approval gate
+opens. The server opts into concurrent execution and rehearsal, then overlays
+streamed node progress on the static graph. The CLI workflows retain their
+sequential interpretation. See [PARALLELISM.md](PARALLELISM.md) for the model and
+failure contract.
+
+## GitHub Actions reports (Unreleased)
+
+The reusable [`rehearse-github`](crates/rehearse-github) adapter observes existing
+progress events and produces live Actions notices, a per-operation timing/status
+table, and downloadable graph/event/report files. It is a non-published workspace
+crate in this checkout. Execution semantics remain in `rehearse`.
+
+The fixture CLI enables it with `--github-report <fresh-directory>`. Reports must
+be outside the lab; safe dry-run still preserves all fixture files. Live notices
+go to stderr, preserving JSON on stdout. On Actions, the final Markdown report is
+also appended to `GITHUB_STEP_SUMMARY`; this is a completed-step summary, while
+operation notices appear live in the logs.
+
+The **Workflow Example E2E** workflow runs only through manual dispatch. Choose
+Rust, Spring Boot, or both, and a full suite, dry-run, successful release, or
+expected-failure scenario. It drives the actual CLI and uploads reports even when
+verification fails. It uses local fixtures and does not exercise the HTTP server
+or browser. See the [example guide](crates/rehearse-workflow-example/README.md)
+for local commands and the manual-run instructions.
+
+```bash
+cargo build -p rehearse-workflow-example --bin rehearse-workflow-example
+python3 scripts/workflow_e2e.py --stack all --scenario suite
+```
+
+Each invocation retains fresh case workspaces and reports under
+`target/workflow-e2e`. An injected verification failure is expected test evidence;
+the E2E suite succeeds when the failure prevents publication and is reported
+accurately.
 
 ## Local Publish Smoke Test
 
@@ -341,6 +394,36 @@ let deployment = plan.execute(&services).await?;
 
 Execute mode never applies dry-run policy.
 
+## Explicit Concurrency (Unreleased)
+
+The graph and concurrency APIs described here are available in this checkout,
+not the published 0.4.0 release. Use a path or Git dependency to try them.
+
+Declare bounded parallel groups through `PlanBuilder::parallel(name, limit,
+build)` with a `NonZeroUsize` limit. Within its closure, use
+`group.branch(name, build)` and `branch.add(operation)` to build named ordered
+branches. The [crate README](crates/rehearse/README.md#static-graphs-and-explicit-concurrency-unreleased)
+contains a complete manual-builder example. The `#[pipeline]` grammar stays
+straight-line; use the manual builder for groups.
+
+Call `execute_concurrent` or `dry_run_concurrent` to honor those groups. Branches
+retain their order, at most the group's limit of operations run at once, and the
+next step waits for the group. Branches may consume preceding outer values and
+their own earlier outputs; sibling branch dependencies and nested groups are
+unsupported. The core polls futures without spawning tasks or choosing a
+runtime. Authors choose independent branches and coordinate shared external
+resources.
+
+Existing `execute()` and `dry_run()` keep their sequential behavior even for
+plans with groups. Concurrent execute stops starting operations on the first
+observed failure, drains operations already running, and returns structured
+failures plus completed and never-started node IDs. Effects already committed
+remain; a hanging operation can keep the drain pending. No following step
+starts after failure. Concurrent dry-run preserves policy-before-dependency
+checks and continues independent work; report rows remain in declaration order
+while progress events may interleave. Listener and custom policy variants are
+available. [PARALLELISM.md](PARALLELISM.md) defines these contracts.
+
 ## Progress listeners
 
 Use listener variants when a CLI or automation runner wants live progress while
@@ -390,6 +473,36 @@ println!("{}", plan.to_mermaid());
 
 The graph is static. It shows plan nodes and explicit `Value<T>` dependencies;
 it does not inspect operation bodies.
+
+For canonical CLI JSON and browser previews, the Unreleased
+`plan.describe_graph()` API returns a `PlanGraphDescription`. With `serde`
+enabled, serialize it directly:
+
+```rust
+let graph = plan.describe_graph();
+println!("{}", serde_json::to_string_pretty(&graph)?);
+println!("{}", graph.to_mermaid());
+```
+
+Schema version 1 records `plan_name`, optional `plan_revision`,
+`default_interpretation: "sequential"`, `nodes`, and `execution`. Nodes contain
+plan-local IDs, declaration positions, names, impacts, value dependencies, and
+string annotations. Execution steps preserve sequence and explicit parallel
+groups separately from value edges. A value fan-out grants no permission to
+reorder work. The graph's Mermaid output draws sequence, forks and joins with
+solid arrows, plus additional value edges with dotted arrows. Existing
+`plan.to_mermaid()` keeps its value-dependency view, and `describe()` keeps its
+table and serialized `rows` format.
+
+Set the application code/configuration revision with
+`PlanBuilder::with_revision` and display hints such as labels or environments
+with `Operation::with_annotation` or `OperationMetadata::with_annotation`.
+Descriptions never invoke bodies, access context, resolve or clone inputs, or
+export literal values and runtime outputs. Live progress is a separate overlay
+keyed by run ID, revision, and node ID. Applications must update the revision
+when relevant code or configuration changes; a graph-metadata hash cannot
+identify opaque operation bodies. This is static metadata serialization, not
+executable-plan serialization.
 
 ## Dry-run Contract
 
@@ -460,3 +573,6 @@ describe output, Mermaid graph output, `#[operation]`, `#[pipeline]`, `step!`,
 compiled examples, API docs, optional serde support, Apache-2.0 packaging
 metadata, local publish smoke testing, and a guarded crates.io publish workflow
 example.
+
+The Unreleased checkout adds canonical graph descriptions and opt-in explicit
+concurrency; see [PARALLELISM.md](PARALLELISM.md).

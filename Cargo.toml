@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/rehearse", "crates/rehearse-macros", "crates/rehearse-filing-example"]
+members = ["crates/rehearse", "crates/rehearse-macros", "crates/rehearse-github", "crates/rehearse-workflow-example"]
 resolver = "2"
 
 [workspace.package]

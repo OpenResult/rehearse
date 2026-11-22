@@ -6,6 +6,16 @@ The implementation centers on an ordered runtime plan plus a small procedural
 macro frontend. The runtime owns the semantic contract; macros provide a
 restricted ergonomic syntax over the same `PlanBuilder` model.
 
+## Describe graph and concurrency design
+
+[PARALLELISM.md](PARALLELISM.md) specifies the additive canonical Describe graph
+and explicit bounded parallel groups. Existing execute and dry-run methods stay
+sequential. New opt-in interpreters honor declared groups, preserve typed value
+ownership, and keep runtime scheduling independent of Tokio. The graph separates
+execution structure from value edges and provides metadata for pre-execution web
+rendering. Application annotations and revision identity bind that preview to its
+live run overlay.
+
 ## Public shape
 
 - The runtime uses `Plan<C, T, E>` generic order: shared context, final output,
@@ -33,13 +43,19 @@ restricted ergonomic syntax over the same `PlanBuilder` model.
   the caller-tracked panic convenience. Neither path resolves or clones inputs.
 - `OperationInputs` is sealed behind private resolution plumbing; supported
   shapes remain unchanged. `IntoInput` remains public.
-- Plans are ordered lists of type-erased nodes. Order controls execute order;
-  explicit `Value<T>` inputs control value dependencies.
+- Plans retain an ordered list of type-erased nodes plus execution steps for
+  ordinary nodes and explicit bounded parallel groups. Default interpreters use
+  flat order; opt-in concurrent interpreters honor groups and barriers. Explicit
+  `Value<T>` inputs control value dependencies separately from control structure.
 - Every run creates a fresh type-erased value store keyed by `NodeId`.
 - Successful outputs are stored as `Arc<dyn Any + Send + Sync>` and resolved
   through checked downcasts. A downcast failure is reported as an internal
   invariant error. Stores also check handle ownership.
-- Operation metadata currently stores owned `String` names and an `Impact`.
+- Operation metadata stores owned names, declared `Impact`, and static string
+  annotations. Plans may carry an application-supplied code/configuration revision.
+- Input resolution prepares owned input data before creating a running future.
+  The concurrent coordinator owns the store and commits outputs while other
+  futures remain in flight; it polls `FuturesUnordered` without spawning tasks.
 
 ## Errors
 
@@ -78,15 +94,101 @@ Examples that expose command-line flags use `clap` through dev-dependencies.
 This keeps the runtime crate dependency surface small while making example help
 and argument validation consistent.
 
-The standalone `crates/rehearse-filing-example` application is a non-published
-workspace member. It owns its `clap` and Tokio dependencies and demonstrates a
-fixed seven-operation plan over a batch of office documents. Destination
-validation runs during dry-run, the independent inbox check runs after skipped
-moves, and verification depends on a real move receipt. Moves use hard-link
-creation followed by source removal to refuse destination replacement; the
-example documents its same-filesystem requirement and partial-batch behavior.
+The standalone `crates/rehearse-workflow-example` application is a non-published
+workspace member. It owns its CLI, Tokio, and serialization dependencies and
+models local CI/CD with deterministic Rust and Spring Boot fixtures. Its CI,
+release, promotion, audit, and maintenance workflows are selected before plan
+construction; each resulting plan is static and ordered. Most plans use the
+macro frontend; the audit plan demonstrates `Operation::sync`, `PlanBuilder`,
+and `try_finish`. The example exposes progress, Mermaid, structured descriptions
+and reports, a custom no-session dry-run policy, and controlled failures.
+
+Build and test operations are declared `Write` because their fixture artifacts
+and reports are managed lab state. Deployments and gateway publications also
+write files, cleanup declares `Delete`, and a deliberately opaque legacy hook
+demonstrates default denial. A later independent gateway observation remains
+available after skipped or failed work. Verification consumes actual receipts;
+dry-run never fabricates an artifact or deployment output. The local domain
+files represent mock external systems, not persisted workflow-engine state.
+The CLI fixture operations do not invoke Cargo, Maven, Java, a server, or cloud
+infrastructure. The optional server binary serves only its own local dashboard.
 CI selects the library crates explicitly for feature-isolation checks so the
-application's macro dependency does not enable macros in manual configurations.
+application's macro and serde dependencies do not enable those features in the
+manual and serde-only library configurations.
+
+## Local workflow server application
+
+The non-published example also exposes `rehearse-workflow-server`, a loopback-only
+Axum application with a static browser client. The server constructs one release
+plan: build/test, an explicit two-branch dev/staging deploy-and-verify group, a
+joining production approval gate, production deploy/verify, gateway publication,
+and observation. It selects the opt-in concurrent interpreter and reuses the
+fixture backend in isolated environment directories;
+these domain files are not execution checkpoints.
+
+The production gate is an ordinary async `Session` operation awaiting a
+server-owned decision channel. It returns a typed permit bound to run, gate,
+artifact SHA-256 digest, revision, and production target. Production consumes
+that permit and rechecks current test and environment evidence before writes.
+The server's rehearsal policy skips the interactive gate and delegates other
+impacts to `SafeDryRun`; dry-run opens no question and fabricates no permit.
+Static plan descriptions remain context-free. `GET /api/plan` and each run's
+graph use the canonical `PlanGraphDescription`; status overlays reference its
+node IDs and events carry run ID, plan revision, and optional node ID. The static
+browser client draws sequence and parallel lanes from that graph before a run.
+Annotations provide display labels, environments, and gate kinds independently
+of operation names.
+
+An in-memory registry owns execution tasks independently of browser requests.
+The synchronous progress listener projects borrowed library events into owned
+JSON snapshots with run IDs, sequence numbers, and timestamps. A bounded replay
+buffer feeds SSE; reconnect uses event IDs and falls back to a full snapshot
+when history has expired. Neither the listener nor network delivery controls
+execution. Separate decision and cancellation endpoints update application
+state and wake the waiting task.
+
+Approval decisions are serialized, checked against the pending artifact and
+revision, and idempotent for the same response. Rejection, expiry, and
+cancellation have explicit application statuses. They do not alter the core
+outcome enums: the gate still returns a real value or an operation error, and
+concurrent execute stops launches and drains active work after a failure.
+Cancellation instead drops the active async plan future; effects completed before
+it remain, with no rollback.
+
+Run records, decisions, and events are lost on server restart. Fixture workspaces
+remain for inspection and future runs receive unique IDs. This prototype adds
+no persistence or resume facility, distributed execution, retries, executable-plan
+serialization, or runtime branching to rehearse. It has one local
+operator, not a production authentication or authorization model. The runtime
+crate remains independent of Axum, Tokio channels, HTTP, and browser code.
+
+## GitHub reporting adapter
+
+The reusable `rehearse-github` workspace crate observes `ProgressListener` events
+without changing policy, scheduling, value storage, or execution outcomes. It is
+initially non-published and depends on the runtime with macros disabled and serde
+enabled. GitHub-specific formatting and file output stay outside the runtime.
+
+An explicit caller-owned reporter combines the canonical Describe graph with
+declaration-ordered runtime outcomes and per-node timings. It writes versioned
+event and report JSON, the unchanged canonical graph JSON, and a Markdown summary
+to a fresh report directory. The caller finalizes it on success or failure and
+may append the summary to `GITHUB_STEP_SUMMARY`. Report artifacts contain metadata
+and diagnostics, not operation outputs, executable plans, or resume checkpoints.
+Reporting I/O failures remain separate from the original workflow error.
+
+Live messages escape GitHub command data, and summary cells escape Markdown/HTML.
+Concurrent events use node IDs rather than overlapping log groups. Never-started
+nodes remain distinct from skipped, blocked, and failed operations. No GitHub API
+credentials, network transport, or async runtime are needed by the adapter.
+
+The CLI opts into reporting explicitly, with reports outside its managed lab so
+dry-run fixture preservation still holds. A dedicated manual-only Actions
+workflow builds once and drives the actual CLI for Rust and Spring Boot fixtures.
+Its Python standard-library driver verifies static graph output, unchanged dry-run
+fixtures, successful release, and an expected verification failure preventing
+gateway publication. The same driver runs locally. Reports are retained even when
+an assertion fails. Server HTTP and browser E2E are outside this first workflow.
 
 ## Static describe
 
@@ -105,6 +207,9 @@ application's macro dependency does not enable macros in manual configurations.
   preserving a readable minimum width.
 - `Plan::to_mermaid()` renders static node metadata and explicit value
   dependency edges for docs and CLI output.
+- `Plan::describe_graph()` returns versioned canonical metadata with explicit
+  execution structure; its `to_mermaid()` renders sequence, fork, and join control
+  edges separately from extra value edges. Existing table JSON remains unchanged.
 
 ## Progress listeners
 
@@ -116,6 +221,8 @@ application's macro dependency does not enable macros in manual configurations.
   `Clone` or formatting requirements to the common error type `E`.
 - Progress events do not participate in dry-run policy decisions, dependency
   checks, value storage, operation execution, or error conversion.
+- Concurrent interpreters invoke listeners from one coordinator, with interleaved
+  node events and one plan finish after active work drains on execute failure.
 
 ## Operation macro
 

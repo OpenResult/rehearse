@@ -2,7 +2,7 @@ use crate::NodeId;
 use std::error::Error;
 use std::fmt;
 
-/// Invalid value reference found while constructing a plan.
+/// Invalid value reference or execution structure found while constructing a plan.
 /// `consumer: None` identifies the selected final output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -21,6 +21,19 @@ pub enum PlanBuildError {
     },
     /// A producer must precede its consumer.
     InvalidOrder { node: NodeId, consumer: NodeId },
+    /// An explicit parallel region needs at least one branch.
+    EmptyParallelGroup { group: String },
+    /// Every declared parallel branch needs at least one operation.
+    EmptyParallelBranch { group: String, branch: String },
+    /// Sibling branches cannot depend on one another inside a region.
+    CrossBranchDependency {
+        node: NodeId,
+        consumer: NodeId,
+        group: String,
+    },
+    /// A node is omitted, duplicated, or misplaced in declared execution order.
+    /// This can occur if construction continues after a builder callback panics.
+    InvalidExecutionStructure { node: NodeId },
     /// The handle's type differs from the producer's output type.
     TypeMismatch {
         node: NodeId,
@@ -32,11 +45,22 @@ pub enum PlanBuildError {
 
 impl fmt::Display for PlanBuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidExecutionStructure { node } => return write!(f, "node {node} is missing or misplaced in the declared execution structure"),
+            Self::EmptyParallelGroup { group } => return write!(f, "parallel group '{group}' has no branches"),
+            Self::EmptyParallelBranch { group, branch } => return write!(f, "branch '{branch}' of parallel group '{group}' has no operations"),
+            Self::CrossBranchDependency { node, consumer, group } => return write!(f, "input {node} of node {consumer} comes from a sibling branch in parallel group '{group}'"),
+            _ => {}
+        }
         let (node, consumer) = match self {
             Self::ForeignValue { node, consumer }
             | Self::UnknownValue { node, consumer }
             | Self::TypeMismatch { node, consumer, .. } => (*node, *consumer),
             Self::InvalidOrder { node, consumer } => (*node, Some(*consumer)),
+            Self::EmptyParallelGroup { .. }
+            | Self::EmptyParallelBranch { .. }
+            | Self::CrossBranchDependency { .. }
+            | Self::InvalidExecutionStructure { .. } => unreachable!("handled above"),
         };
         match consumer {
             Some(consumer) => write!(f, "input {node} of node {consumer}: ")?,
@@ -46,6 +70,10 @@ impl fmt::Display for PlanBuildError {
             Self::ForeignValue { .. } => f.write_str("value belongs to another plan"),
             Self::UnknownValue { .. } => f.write_str("producer does not exist"),
             Self::InvalidOrder { .. } => f.write_str("producer must precede consumer"),
+            Self::EmptyParallelGroup { .. }
+            | Self::EmptyParallelBranch { .. }
+            | Self::CrossBranchDependency { .. }
+            | Self::InvalidExecutionStructure { .. } => unreachable!("handled above"),
             Self::TypeMismatch {
                 expected, actual, ..
             } => write!(f, "expected {expected}, producer returns {actual}"),

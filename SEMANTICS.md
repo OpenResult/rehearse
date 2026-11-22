@@ -88,12 +88,20 @@ are separate from the plan-local node indices used in descriptions and reports.
 
 ## Order And Value Dependencies
 
-The plan is an ordered list. List order controls execute traversal and report
-order.
+The plan retains a flat declaration order plus explicit execution structure.
+Declaration order controls the existing sequential interpreters and final report
+order. `PlanBuilder::parallel` adds named, ordered branches and a group-wide
+nonzero concurrency limit. Only the opt-in concurrent interpreters use it.
 
 Value dependencies are separate. A node is value-dependent only on the
 `Value<T>` handles it consumes. A later node is not blocked simply because an
 earlier unrelated node was skipped, denied, blocked, or failed.
+
+Inside a parallel group, a branch may depend on earlier nodes in that branch or
+nodes before the group. Sibling branch dependencies are rejected at construction.
+Following nodes may consume any group outputs. Groups do not nest. Construction
+also rejects empty groups/branches and incomplete execution structure, including
+nodes left behind by a caught builder-callback panic.
 
 ## Execute Mode
 
@@ -108,6 +116,24 @@ For each node:
 - nodes after the first failure are not invoked.
 
 Execute mode never applies dry-run policy.
+
+### Opt-in concurrent execute
+
+`execute_concurrent` and its listener variant preserve ordinary sequential steps
+and run only explicitly declared parallel branches concurrently. Each branch
+keeps its own order; the group limit bounds in-flight operation futures. The next
+outer step waits for the whole group. Missing data edges or an operation's impact
+do not grant permission to reorder work.
+
+The first observed failure stops new launches. Already-running operations drain
+and their real outcomes are retained. `ConcurrentExecuteError<E>` contains all
+observed errors, successful node IDs, and never-started node IDs. Errors use
+observation order; the ID lists use declaration order. No completed effects are
+rolled back. A hanging operation can keep the drain pending. Dropping the run
+future cancels polling; it does not undo effects or perform graceful draining.
+
+Scheduling polls futures without spawning tasks or requiring a particular async
+runtime. It permits async overlap, not automatic CPU parallelism.
 
 ## Dry-run Mode
 
@@ -136,6 +162,11 @@ For each node:
 
 Policy-before-dependency means a write is reported as skipped by policy even if
 one of its inputs is unavailable.
+
+`dry_run_concurrent` and its policy/listener variants honor the same explicit
+groups while retaining policy-before-dependencies and independent continuation.
+Skip, deny, block, and operation failure do not stop the group or later steps.
+Progress may interleave, but the final report remains in declaration order.
 
 ## No Fabricated Outputs
 
@@ -184,8 +215,20 @@ dry-run action column.
 `Plan::to_mermaid()` renders a static dependency graph from node metadata and
 explicit `Value<T>` inputs.
 
-Describe does not use a context, create a value store, resolve dependencies, or
-invoke operation bodies.
+`Plan::describe_graph()` returns the canonical owned `PlanGraphDescription`.
+With the `serde` feature, its versioned JSON records nodes, explicit execution
+steps, value dependencies, application annotations, and an optional application
+revision. `describe_graph().to_mermaid()` renders sequence, fork, and join control
+structure separately from value edges. An ordinary data fan-out stays sequential.
+Existing description row JSON and `Plan::to_mermaid()` remain supported.
+
+`with_revision` supplies application code/configuration identity; rehearse does
+not infer it from opaque bodies. Consumers correlate overlays using run ID,
+revision, and plan-local node ID. The graph contains no literal input values,
+runtime results, approval decisions, or executable operation bodies.
+
+Describe does not use a context, create a value store, resolve or clone inputs,
+or invoke operation bodies.
 
 ## Progress Listeners
 
@@ -197,6 +240,10 @@ Listeners are not part of policy evaluation, dependency resolution, value
 storage, operation execution, or error conversion. A listener can display or
 record progress, but returning from a listener callback cannot alter runtime
 semantics.
+
+Concurrent listeners are called by the coordinator, with node events allowed to
+interleave. A failed concurrent execute emits plan finish after active operations
+drain. Listener callbacks do not run concurrently with one another.
 
 ## Current Runtime Constraints
 

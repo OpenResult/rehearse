@@ -21,7 +21,8 @@ or prove whether arbitrary Rust code mutates state.
 ├── crates/
 │   ├── rehearse/          # runtime facade crate, examples, integration tests
 │   ├── rehearse-macros/   # #[operation], #[pipeline], and step! macros
-│   └── rehearse-filing-example/ # non-published office filing CLI
+│   ├── rehearse-github/   # reusable, initially non-published reporting adapter
+│   └── rehearse-workflow-example/ # non-published local CI/CD workflow lab
 ├── scripts/
 │   └── publish-local.sh   # no-server local registry smoke test
 ├── DESIGN.md
@@ -37,7 +38,10 @@ use Tokio.
 
 - Building a plan must not invoke operation bodies.
 - Execute mode visits nodes in plan order and fails fast on the first operation
-  error.
+  error. This remains the default even for plans declaring parallel groups.
+- Opt-in concurrent execution runs only explicit bounded groups, preserves branch
+  order and group barriers, and stops launching on the first observed failure
+  while draining operations already in flight. See `PARALLELISM.md`.
 - Dry-run checks policy before dependencies.
 - Dry-run does not fail fast on skipped, denied, blocked, or failed nodes.
 - Skipped, denied, blocked, and failed nodes produce no value.
@@ -95,6 +99,9 @@ classification.
 - Inputs and outputs require `Clone + Send + Sync + 'static`.
 - All operations in one plan share one context type and one error type.
 - Operation metadata uses owned `String` names and declared `Impact`.
+- Metadata may carry static string annotations. `describe_graph` exports versioned
+  nodes, value edges, explicit execution structure, and application revision;
+  runtime overlays remain separate from the static graph.
 - Successful outputs are stored per run as `Arc<dyn Any + Send + Sync>` and
   resolved through checked downcasts.
 
@@ -130,11 +137,18 @@ error.
   runs the guarded crates.io publish workflow in safe dry-run mode.
 - `cargo run -p rehearse --example configure_vscode -- --dry-run`
   rehearses adding the project rust-analyzer settings to `.vscode/settings.json`.
-- `cargo run -p rehearse-filing-example -- --seed-demo`
-  creates a sample office inbox; omit the flag to dry-run or use `--execute` to file it.
+- `cargo run -p rehearse-workflow-example -- --init`
+  creates a local CI/CD lab with Rust and Spring Boot fixtures. Omit the flag to
+  dry-run the release workflow, or use `--execute` to change the local lab files.
+- `cargo run -p rehearse-workflow-example --bin rehearse-workflow-server`
+  serves a loopback browser dashboard with streamed progress and an in-memory
+  production approval gate; all deployment effects remain local fixture files.
 - `scripts/publish-local.sh`
   uses Python 3.11+ to create a marked file-backed local Cargo registry under
   `target/local-registry/generated` and verifies four consumer configurations.
+- `scripts/workflow_e2e.py`
+  drives the actual fixture CLI locally and in the manual-only Actions E2E
+  workflow; reports remain separate from fixture files.
 
 ## Verification
 
@@ -155,9 +169,12 @@ packaging, macros, or dry-run semantics.
 - Prefer existing runtime and macro patterns over new abstractions.
 - Keep changes scoped. Do not turn the crate into a general workflow engine.
 - Keep operation impact explicit; do not add automatic mutation detection.
+- Keep GitHub command formatting, report files, and summary integration in
+  `rehearse-github`; the runtime must not depend on the reporting adapter.
 - Do not add persistent state, distributed execution, retries, rollback,
-  serialization, graph parallelism, or runtime branching without a separate
-  design update.
+  executable-plan serialization, nested parallel groups, or runtime branching
+  without a separate design update. Canonical metadata serialization and explicit
+  bounded groups follow `PARALLELISM.md`.
 - Use structured errors internally; stringify only for display or diagnostics.
 - Update `DESIGN.md` when a consequential representation or packaging choice
   changes.

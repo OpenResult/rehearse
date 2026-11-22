@@ -1,0 +1,5 @@
+{
+  "build_command": "cargo build --release",
+  "test_command": "cargo test",
+  "expected_health": "UP"
+}

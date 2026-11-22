@@ -15,7 +15,7 @@ pub(crate) trait ErasedNode<C, E>: Send + Sync {
     fn run<'a>(
         &'a self,
         context: &'a C,
-        store: &'a ValueStore,
+        store: &ValueStore,
     ) -> BoxFuture<'a, Result<StoredValue, NodeRunError<E>>>;
 }
 
@@ -64,10 +64,11 @@ where
     fn run<'a>(
         &'a self,
         context: &'a C,
-        store: &'a ValueStore,
+        store: &ValueStore,
     ) -> BoxFuture<'a, Result<StoredValue, NodeRunError<E>>> {
+        let future = self.operation.run(context, store);
         Box::pin(async move {
-            let output = self.operation.run(context, store).await?;
+            let output = future.await?;
             Ok(ValueStore::erase(output))
         })
     }

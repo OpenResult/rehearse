@@ -1,0 +1,18 @@
+[package]
+name = "rehearse-github"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "GitHub Actions progress and report adapter for rehearse"
+readme = "README.md"
+publish = false
+
+[dependencies]
+rehearse = { path = "../rehearse", default-features = false, features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "sync"] }

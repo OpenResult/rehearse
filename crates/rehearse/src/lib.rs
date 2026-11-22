@@ -26,8 +26,10 @@
 
 #![forbid(unsafe_code)]
 
+mod concurrent_error;
 mod describe;
 mod error;
+mod graph;
 mod impact;
 mod operation;
 mod policy;
@@ -37,13 +39,18 @@ mod report;
 pub mod plan;
 mod runner;
 
+pub use concurrent_error::ConcurrentExecuteError;
 pub use describe::{
     PlanDescription, PlanDescriptionRow, PlanExecutionDescription, PlanExecutionDescriptionRow,
 };
 pub use error::{DryRunFailure, ExecuteError, InvariantError, PlanBuildError, ValueError};
+pub use graph::{GraphNode, PlanGraphDescription};
 pub use impact::Impact;
 pub use operation::{BoxFuture, Operation, OperationMetadata};
-pub use plan::{Input, IntoInput, NodeId, OperationInputs, Plan, PlanBuilder, Value};
+pub use plan::{
+    BranchBuilder, ExecutionStep, Input, IntoInput, NodeId, OperationInputs, ParallelBranch,
+    ParallelBuilder, ParallelGroup, Plan, PlanBuilder, Value,
+};
 pub use policy::{DryRunAction, DryRunPolicy, SafeDryRun};
 pub use progress::{
     ConsoleProgress, ConsoleProgressOptions, NoopProgress, ProgressEvent, ProgressListener,
